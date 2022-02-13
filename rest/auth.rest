@@ -1,0 +1,19 @@
+POST http://localhost:3001/auth/register
+content-type: application/json
+
+{
+    "firstName": "John",
+    "lastName": "Doe",
+    "username": "johndoe",
+    "email": "jd@distnode.com",
+    "password": "P@ssw0rd"
+}
+
+###
+POST http://localhost:3001/auth/login
+content-type: application/json
+
+{
+    "email": "jd@distnode.com",
+    "password": "P@ssw0rd"
+}
