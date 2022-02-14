@@ -1,3 +1,4 @@
+### Create new user and set cookie
 POST http://localhost:3001/auth/register
 content-type: application/json
 
@@ -9,7 +10,7 @@ content-type: application/json
     "password": "P@ssw0rd"
 }
 
-###
+### Get tokens and set cookie
 POST http://localhost:3001/auth/login
 content-type: application/json
 
@@ -17,3 +18,15 @@ content-type: application/json
     "email": "jd@distnode.com",
     "password": "P@ssw0rd"
 }
+
+### Refresh using cookie token
+POST http://localhost:3001/auth/refresh
+content-type: application/json
+
+{}
+
+### Logout - overwrite cookies and delete refresh token
+POST http://localhost:3001/auth/logout
+content-type: application/json
+
+{}

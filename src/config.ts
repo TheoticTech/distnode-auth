@@ -1,7 +1,19 @@
+const ENVIRONMENT = process.env.NODE_ENV || 'development'
 const ARGON_MEMORY_COST = 16384
-const JWT_SECRET = process.env.JWT_SECRET
-const JWT_TOKEN_TTL = '7m'
+const JWT_ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET
+const JWT_ACCESS_TOKEN_TTL = '7m'
+const JWT_REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET
+const JWT_REFRESH_TOKEN_TTL = '30s'
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/test'
 const PORT = process.env.PORT || 3001
 
-export { ARGON_MEMORY_COST, JWT_TOKEN_TTL, JWT_SECRET, MONGO_URI, PORT }
+export {
+    ENVIRONMENT,
+    ARGON_MEMORY_COST,
+    JWT_ACCESS_TOKEN_SECRET,
+    JWT_ACCESS_TOKEN_TTL,
+    JWT_REFRESH_TOKEN_SECRET,
+    JWT_REFRESH_TOKEN_TTL,
+    MONGO_URI,
+    PORT
+}

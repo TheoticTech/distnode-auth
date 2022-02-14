@@ -1,4 +1,5 @@
 // Third party
+import cookieParser from 'cookie-parser'
 import express from 'express'
 import mongoose from 'mongoose'
 
@@ -9,6 +10,7 @@ import { authRoutes } from './routes/auth'
 import { MONGO_URI, PORT } from './config'
 
 const app = express()
+app.use(cookieParser())
 app.use(express.json())
 
 mongoose

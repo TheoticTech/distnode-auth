@@ -1,42 +1,43 @@
 // Third party
 import chai from 'chai'
 import chaiHttp from 'chai-http'
+import mongoose from 'mongoose'
 
 // Local
 import { app } from '../src/app'
 import { userModel } from '../src/models/user'
+import { refreshTokenModel } from '../src/models/refreshToken'
 
 chai.use(chaiHttp)
 chai.should()
 
+const validRegistrationPayload = {
+    firstName: 'John',
+    lastName: 'Doe',
+    username: 'johndoe',
+    email: 'johndoe@distnode.com',
+    password: 'P@ssw0rd'
+}
+
 // NOTE: App requires a MongoDB connection
 describe('Authentication routes', function () {
-
-    describe('POST /register', function () {
-
+    describe('POST /auth/register', function () {
         beforeEach(async function () {
             await userModel.deleteMany()
         })
 
-        const validRegistrationPayload = {
-            firstName: 'John',
-            lastName: 'Doe',
-            username: 'johndoe',
-            email: 'johndoe@distnode.com',
-            password: 'P@ssw0rd'
-        }
-
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { password, ...missingPasswordPayload } =
-            validRegistrationPayload
+        const { password, ...missingPasswordPayload } = validRegistrationPayload
 
-        it('should return 201 and token when supplied proper input', (done) => {
+        it('should return 201 and set token cookies when supplied proper input', (done) => {
             chai.request(app)
                 .post('/auth/register')
                 .send(validRegistrationPayload)
                 .end((err, res) => {
                     res.should.have.status(201)
-                    res.body.should.have.property('token')
+                    res.should.have.cookie('accessToken')
+                    res.should.have.cookie('refreshToken')
+                    res.text.should.equal('User created successfully')
                     done()
                 })
         })
@@ -47,7 +48,7 @@ describe('Authentication routes', function () {
                 .send(missingPasswordPayload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
+                    res.text.should.equal('All input is required')
                     done()
                 })
         })
@@ -62,7 +63,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -77,7 +77,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -92,7 +91,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -107,7 +105,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -122,7 +119,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -137,7 +133,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -155,7 +150,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -173,7 +167,6 @@ describe('Authentication routes', function () {
                 .send(payload)
                 .end((err, res) => {
                     res.should.have.status(400)
-                    res.body.should.be.a('object')
                     done()
                 })
         })
@@ -200,7 +193,7 @@ describe('Authentication routes', function () {
                     .send(secondPayload)
                     .end((err, res) => {
                         res.should.have.status(409)
-                        res.body.should.be.a('object')
+                        res.text.should.equal('Username is already taken')
                         done()
                     })
             })
@@ -228,7 +221,7 @@ describe('Authentication routes', function () {
                     .send(secondPayload)
                     .end((err, res) => {
                         res.should.have.status(409)
-                        res.body.should.be.a('object')
+                        res.text.should.equal('Email is already taken')
                         done()
                     })
             })
@@ -236,27 +229,20 @@ describe('Authentication routes', function () {
     })
 
     describe('POST /auth/login', () => {
-
         beforeEach(async function () {
             await userModel.deleteMany()
         })
 
-        const validRegistrationPayload = {
-            firstName: 'John',
-            lastName: 'Doe',
-            username: 'johndoe',
-            email: 'johndoe@distnode.com',
-            password: 'P@ssw0rd'
-        }
-
-        it('should return 200 and token for valid login', (done) => {
+        it('should return 200 and set token cookies for valid login', (done) => {
             userModel.create(validRegistrationPayload).then(() => {
                 chai.request(app)
                     .post('/auth/login')
                     .send(validRegistrationPayload)
                     .end((err, res) => {
                         res.should.have.status(200)
-                        res.body.should.have.property('token')
+                        res.should.have.cookie('accessToken')
+                        res.should.have.cookie('refreshToken')
+                        res.text.should.equal('User logged in successfully')
                         done()
                     })
             })
@@ -274,6 +260,7 @@ describe('Authentication routes', function () {
                     .end((err, res) => {
                         res.should.have.status(401)
                         res.body.should.not.have.property('token')
+                        res.text.should.equal('Invalid credentials')
                         done()
                     })
             })
@@ -290,6 +277,7 @@ describe('Authentication routes', function () {
                 .end((err, res) => {
                     res.should.have.status(400)
                     res.body.should.not.have.property('token')
+                    res.text.should.equal('Email and password required')
                     done()
                 })
         })
@@ -305,6 +293,7 @@ describe('Authentication routes', function () {
                 .end((err, res) => {
                     res.should.have.status(400)
                     res.body.should.not.have.property('token')
+                    res.text.should.equal('Email and password required')
                     done()
                 })
         })
@@ -320,9 +309,125 @@ describe('Authentication routes', function () {
                 .end((err, res) => {
                     res.should.have.status(401)
                     res.body.should.not.have.property('token')
+                    res.text.should.equal('Invalid credentials')
                     done()
                 })
         })
+    })
 
+    describe('POST /auth/refresh', () => {
+        beforeEach(async function () {
+            await userModel.deleteMany()
+        })
+
+        it('should return 200 and set token cookies for valid refresh', (done) => {
+            userModel.create(validRegistrationPayload).then(() => {
+                const agent = chai.request.agent(app)
+
+                agent
+                    .post('/auth/login')
+                    .send(validRegistrationPayload)
+                    .then((loginRes) => {
+                        loginRes.should.have.cookie('accessToken')
+                        loginRes.should.have.cookie('refreshToken')
+
+                        return agent
+                            .post('/auth/refresh')
+                            .then((refreshRes) => {
+                                refreshRes.should.have.status(200)
+                                refreshRes.should.have.cookie('accessToken')
+                                refreshRes.text.should.equal(
+                                    'Access token refreshed'
+                                )
+                                done()
+                            })
+                    })
+                    .catch((err) => {
+                        done(err)
+                    })
+                    .finally(() => {
+                        agent.close()
+                    })
+            })
+        })
+
+        it('should return 401 if no refresh token provided', (done) => {
+            const agent = chai.request.agent(app)
+
+            agent
+                .post('/auth/refresh')
+                .then((res) => {
+                    res.should.have.status(401)
+                    res.should.have.not.have.cookie('accessToken')
+                    res.text.should.equal('Refresh token required')
+                    done()
+                })
+                .catch((err) => {
+                    done(err)
+                })
+                .finally(() => {
+                    agent.close()
+                })
+        })
+
+        it('should return 401 if invalid refresh token provided', (done) => {
+            userModel.create(validRegistrationPayload).then(() => {
+                const agent = chai.request.agent(app)
+
+                agent
+                    .post('/auth/refresh')
+                    .set('Cookie', 'refreshToken=invalid-token')
+                    .then((refreshRes) => {
+                        refreshRes.should.have.status(401)
+                        refreshRes.should.not.have.cookie('accessToken')
+                        refreshRes.text.should.equal('Invalid refresh token')
+                        done()
+                    })
+                    .catch((err) => {
+                        done(err)
+                    })
+                    .finally(() => {
+                        agent.close()
+                    })
+            })
+        })
+    })
+
+    describe('POST /auth/logout', () => {
+        it('should return 200 and delete refresh token if exists', (done) => {
+            refreshTokenModel
+                .create({
+                    token: 'token',
+                    user_id: new mongoose.Types.ObjectId()
+                })
+                .then((token) => {
+                    chai.expect(token).not.to.be.null
+                    chai.request(app)
+                        .post('/auth/logout')
+                        .set('Cookie', `refreshToken=${token.token}`)
+                        .send({})
+                        .end((err, res) => {
+                            res.should.have.status(200)
+                            res.text.should.equal(
+                                'User logged out successfully'
+                            )
+
+                            refreshTokenModel
+                                .exists({
+                                    token: token.token
+                                })
+                                .then((exists) => {
+                                    chai.expect(exists).to.be.null
+                                    done()
+                                })
+                                .catch((err) => {
+                                    done(err)
+                                })
+                        })
+                })
+                .catch((err) => {
+                    done(err)
+                })
+        })
     })
 })
