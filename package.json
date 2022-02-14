@@ -8,7 +8,8 @@
     "dev": "nodemon --watch src --ext .ts --exec 'ts-node src/app.ts'",
     "lint": "eslint . --ext .ts",
     "format": "eslint . --ext .ts --fix",
-    "test": "mocha --exit -r ts-node/register test/*.ts"
+    "test": "mocha --exit -r ts-node/register test/*.ts",
+    "coverage": "nyc mocha --exit -r ts-node/register test/*.ts"
   },
   "author": "Greg Krause",
   "license": "ISC",
@@ -24,6 +25,7 @@
     "eslint-plugin-prettier": "^4.0.0",
     "mocha": "^9.2.0",
     "nodemon": "^2.0.15",
+    "nyc": "^15.1.0",
     "prettier": "^2.5.1",
     "ts-node": "^10.5.0",
     "typescript": "^4.5.5"
