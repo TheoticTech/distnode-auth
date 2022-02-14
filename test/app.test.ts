@@ -34,6 +34,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(validRegistrationPayload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(201)
                     res.should.have.cookie('accessToken')
                     res.should.have.cookie('refreshToken')
@@ -47,6 +50,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(missingPasswordPayload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     res.text.should.equal('All input is required')
                     done()
@@ -62,6 +68,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -76,6 +85,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -90,6 +102,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -104,6 +119,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -118,6 +136,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -132,6 +153,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -149,6 +173,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -166,6 +193,9 @@ describe('Authentication routes', function () {
                 .post('/auth/register')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
                     done()
                 })
@@ -192,8 +222,11 @@ describe('Authentication routes', function () {
                     .post('/auth/register')
                     .send(secondPayload)
                     .end((err, res) => {
+                        if (err) {
+                            done(err)
+                        }
                         res.should.have.status(409)
-                        res.text.should.equal('Username is already taken')
+                        res.text.should.equal('Username is already in use')
                         done()
                     })
             })
@@ -220,8 +253,11 @@ describe('Authentication routes', function () {
                     .post('/auth/register')
                     .send(secondPayload)
                     .end((err, res) => {
+                        if (err) {
+                            done(err)
+                        }
                         res.should.have.status(409)
-                        res.text.should.equal('Email is already taken')
+                        res.text.should.equal('Email is already in use')
                         done()
                     })
             })
@@ -239,6 +275,9 @@ describe('Authentication routes', function () {
                     .post('/auth/login')
                     .send(validRegistrationPayload)
                     .end((err, res) => {
+                        if (err) {
+                            done(err)
+                        }
                         res.should.have.status(200)
                         res.should.have.cookie('accessToken')
                         res.should.have.cookie('refreshToken')
@@ -258,8 +297,12 @@ describe('Authentication routes', function () {
                     .post('/auth/login')
                     .send(payload)
                     .end((err, res) => {
+                        if (err) {
+                            done(err)
+                        }
                         res.should.have.status(401)
-                        res.body.should.not.have.property('token')
+                        res.should.not.have.cookie('accessToken')
+                        res.should.not.have.cookie('refreshToken')
                         res.text.should.equal('Invalid credentials')
                         done()
                     })
@@ -275,8 +318,12 @@ describe('Authentication routes', function () {
                 .post('/auth/login')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
-                    res.body.should.not.have.property('token')
+                    res.should.not.have.cookie('accessToken')
+                    res.should.not.have.cookie('refreshToken')
                     res.text.should.equal('Email and password required')
                     done()
                 })
@@ -291,8 +338,12 @@ describe('Authentication routes', function () {
                 .post('/auth/login')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(400)
-                    res.body.should.not.have.property('token')
+                    res.should.not.have.cookie('accessToken')
+                    res.should.not.have.cookie('refreshToken')
                     res.text.should.equal('Email and password required')
                     done()
                 })
@@ -307,8 +358,12 @@ describe('Authentication routes', function () {
                 .post('/auth/login')
                 .send(payload)
                 .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
                     res.should.have.status(401)
-                    res.body.should.not.have.property('token')
+                    res.should.not.have.cookie('accessToken')
+                    res.should.not.have.cookie('refreshToken')
                     res.text.should.equal('Invalid credentials')
                     done()
                 })
@@ -380,6 +435,7 @@ describe('Authentication routes', function () {
                     .then((refreshRes) => {
                         refreshRes.should.have.status(401)
                         refreshRes.should.not.have.cookie('accessToken')
+                        refreshRes.should.not.have.cookie('refreshToken')
                         refreshRes.text.should.equal('Invalid refresh token')
                         done()
                     })
@@ -407,6 +463,9 @@ describe('Authentication routes', function () {
                         .set('Cookie', `refreshToken=${token.token}`)
                         .send({})
                         .end((err, res) => {
+                            if (err) {
+                                done(err)
+                            }
                             res.should.have.status(200)
                             res.text.should.equal(
                                 'User logged out successfully'
@@ -427,6 +486,51 @@ describe('Authentication routes', function () {
                 })
                 .catch((err) => {
                     done(err)
+                })
+        })
+
+        it('should return 200 even if refresh token does not exist', (done) => {
+            chai.request(app)
+                .post('/auth/logout')
+                .set('Cookie', 'refreshToken=invalid-token')
+                .send({})
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(200)
+                    res.text.should.equal('User logged out successfully')
+                    done()
+                })
+        })
+
+        it('should return 200 even if refresh token is not provided', (done) => {
+            chai.request(app)
+                .post('/auth/logout')
+                .send({})
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(200)
+                    res.text.should.equal('User logged out successfully')
+                    done()
+                })
+        })
+    })
+
+    describe('GET /doesnt-exist', () => {
+        it('should return 404 if route does not exist', (done) => {
+            chai.request(app)
+                .get('/doesnt-exist')
+                .send({})
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(404)
+                    res.text.should.equal('Route not found')
+                    done()
                 })
         })
     })

@@ -27,7 +27,7 @@ mongoose
 app.use('/auth', authRoutes)
 
 app.use('*', (req, res) => {
-    return res.status(404).send('404 Not Found')
+    return res.status(404).send('Route not found')
 })
 
 app.listen(PORT, () => {

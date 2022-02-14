@@ -6,6 +6,7 @@ import mongoose from 'mongoose'
 // Configurations
 import { ARGON_MEMORY_COST } from '../config'
 
+// Constants
 const argon2Options = {
     type: argon2.argon2id,
     memoryCost: ARGON_MEMORY_COST
@@ -66,7 +67,7 @@ userSchema.methods.setPassword = async function (
 userSchema.methods.validPassword = async function (
     password: string
 ): Promise<boolean> {
-    return verifyPassword(this.password, password)
+    return await verifyPassword(this.password, password)
 }
 
 const userModel = mongoose.model('user', userSchema)

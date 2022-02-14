@@ -45,11 +45,11 @@ authRoutes.post(
             }
 
             if (await userModel.findOne({ email })) {
-                return res.status(409).send('Email is already taken')
+                return res.status(409).send('Email is already in use')
             }
 
             if (await userModel.findOne({ username })) {
-                return res.status(409).send('Username is already taken')
+                return res.status(409).send('Username is already in use')
             }
 
             if (
