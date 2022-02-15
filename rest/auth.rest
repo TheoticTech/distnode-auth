@@ -1,4 +1,4 @@
-### Create new user and set cookie
+### Register - add new user and set cookie
 POST http://localhost:3001/auth/register
 content-type: application/json
 
@@ -10,7 +10,7 @@ content-type: application/json
     "password": "P@ssw0rd"
 }
 
-### Get tokens and set cookie
+### Login - get tokens and set in cookie
 POST http://localhost:3001/auth/login
 content-type: application/json
 
@@ -19,14 +19,31 @@ content-type: application/json
     "password": "P@ssw0rd"
 }
 
-### Refresh using cookie token
+### Refresh - update accessToken using refresh token
 POST http://localhost:3001/auth/refresh
 content-type: application/json
 
 {}
 
-### Logout - overwrite cookies and delete refresh token
+### Logout - invalidate cookies and delete current refresh token
 POST http://localhost:3001/auth/logout
 content-type: application/json
 
 {}
+
+### Delete refresh token - overwrite cookies and delete refresh token
+DELETE http://localhost:3001/auth/delete-refresh-token
+Content-Type: application/json
+
+{
+    "refreshToken": "{{refreshToken}}"
+}
+
+### Delete user - remove user, overwrite cookies, and delete refresh tokens
+DELETE http://localhost:3001/auth/delete-user
+Content-Type: application/json
+
+{
+    "email": "jd@distnode.com",
+    "password": "P@ssw0rd"
+}

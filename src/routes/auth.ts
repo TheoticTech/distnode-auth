@@ -110,7 +110,8 @@ authRoutes.post(
 
             return res.status(201).send('User created successfully')
         } catch (err) {
-            console.log(err)
+            console.error(err)
+            return res.status(500).send('An error occurred')
         }
     }
 )
@@ -130,7 +131,7 @@ authRoutes.post(
 
             const user = await userModel.findOne({ email })
 
-            if (user && (await user.validPassword(req.body.password))) {
+            if (user && (await user.validPassword(password))) {
                 const accessToken = jwt.sign(
                     { user_id: user._id },
                     JWT_ACCESS_TOKEN_SECRET,
@@ -158,7 +159,8 @@ authRoutes.post(
 
             return res.status(401).send('Invalid credentials')
         } catch (err) {
-            console.log(err)
+            console.error(err)
+            return res.status(500).send('An error occurred')
         }
     }
 )
@@ -177,7 +179,12 @@ authRoutes.post(
                     token: refreshToken
                 })
 
-                if (existingRefreshToken) {
+                const isValidToken = jwt.verify(
+                    refreshToken,
+                    JWT_REFRESH_TOKEN_SECRET
+                )
+
+                if (existingRefreshToken && isValidToken) {
                     const accessToken = jwt.sign(
                         { user_id: existingRefreshToken.user_id },
                         JWT_ACCESS_TOKEN_SECRET,
@@ -194,7 +201,12 @@ authRoutes.post(
 
             return res.status(401).send('Invalid refresh token')
         } catch (err) {
-            console.log(err)
+            if (err instanceof jwt.JsonWebTokenError) {
+                return res.status(401).send('Invalid refresh token')
+            } else {
+                console.error(err)
+                return res.status(500).send('An error occurred')
+            }
         }
     }
 )
@@ -217,7 +229,73 @@ authRoutes.post(
 
             return res.status(200).send('User logged out successfully')
         } catch (err) {
-            console.log(err)
+            console.error(err)
+            return res.status(500).send('An error occurred')
+        }
+    }
+)
+
+authRoutes.delete(
+    '/delete-refresh-token',
+    async (
+        req: express.Request,
+        res: express.Response
+    ): Promise<express.Response> => {
+        try {
+            const { refreshToken } = req.body
+
+            if (refreshToken) {
+                const refreshTokenExists = await refreshTokenModel.exists({
+                    token: refreshToken
+                })
+
+                if (refreshTokenExists) {
+                    await refreshTokenModel.deleteOne({ token: refreshToken })
+                    return res
+                        .status(200)
+                        .send('Refresh token deleted successfully')
+                } else {
+                    return res.status(404).send('Refresh token not found')
+                }
+            }
+
+            return res.status(400).send('Refresh token required')
+        } catch (err) {
+            console.error(err)
+            return res.status(500).send('An error occurred')
+        }
+    }
+)
+
+authRoutes.delete(
+    '/delete-user',
+    async (
+        req: express.Request,
+        res: express.Response
+    ): Promise<express.Response> => {
+        try {
+            const { email, password } = req.body
+
+            if (!(email && password)) {
+                return res.status(400).send('Email and password required')
+            }
+
+            const user = await userModel.findOne({ email })
+
+            if (user && (await user.validPassword(password))) {
+                await userModel.deleteOne({ _id: user._id })
+                await refreshTokenModel.deleteMany({ user_id: user._id })
+
+                res.cookie('accessToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
+                res.cookie('refreshToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
+
+                return res.status(200).send('User deleted successfully')
+            }
+
+            return res.status(401).send('Invalid credentials')
+        } catch (err) {
+            console.error(err)
+            return res.status(500).send('An error occurred')
         }
     }
 )

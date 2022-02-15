@@ -519,6 +519,169 @@ describe('Authentication routes', function () {
         })
     })
 
+    describe('DELETE /auth/delete-user', () => {
+        beforeEach(async function () {
+            await userModel.deleteMany()
+            await refreshTokenModel.deleteMany()
+        })
+
+        it('should return 200 and delete user and refresh tokens if they exist', (done) => {
+            userModel.create(validRegistrationPayload).then((user) => {
+                const agent = chai.request.agent(app)
+
+                agent
+                    .post('/auth/login')
+                    .send(validRegistrationPayload)
+                    .then((loginRes) => {
+                        loginRes.should.have.cookie('accessToken')
+                        loginRes.should.have.cookie('refreshToken')
+
+                        return agent
+                            .delete('/auth/delete-user')
+                            .send(validRegistrationPayload)
+                            .then((deleteRes) => {
+                                deleteRes.should.have.status(200)
+                                deleteRes.should.not.have.cookie('accessToken')
+                                deleteRes.should.not.have.cookie('refreshToken')
+                                deleteRes.text.should.equal(
+                                    'User deleted successfully'
+                                )
+
+                                userModel
+                                    .exists({
+                                        user_id: user._id
+                                    })
+                                    .then((userExists) => {
+                                        chai.expect(userExists).to.be.null
+
+                                        refreshTokenModel
+                                            .exists({
+                                                user_id: user._id
+                                            })
+                                            .then((refreshTokenExists) => {
+                                                chai.expect(refreshTokenExists)
+                                                    .to.be.null
+                                                done()
+                                            })
+                                            .catch((err) => {
+                                                done(err)
+                                            })
+                                    })
+                                    .catch((err) => {
+                                        done(err)
+                                    })
+                            })
+                    })
+                    .catch((err) => {
+                        done(err)
+                    })
+                    .finally(() => {
+                        agent.close()
+                    })
+            })
+        })
+
+        it('should return 400 if user data not provided', (done) => {
+            chai.request(app)
+                .delete('/auth/delete-user')
+                .send({})
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(400)
+                    res.text.should.equal('Email and password required')
+                    done()
+                })
+        })
+
+        it('should return 401 if user does not exist', (done) => {
+            chai.request(app)
+                .delete('/auth/delete-user')
+                .send(validRegistrationPayload)
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(401)
+                    res.text.should.equal('Invalid credentials')
+                    done()
+                })
+        })
+    })
+
+    describe('DELETE /auth/delete-refresh-token', () => {
+        beforeEach(async function () {
+            await refreshTokenModel.deleteMany()
+        })
+
+        it('should return 200 if valid refresh token provided and deleted', (done) => {
+            refreshTokenModel
+                .create({
+                    token: 'token',
+                    user_id: new mongoose.Types.ObjectId()
+                })
+                .then((token) => {
+                    chai.expect(token).not.to.be.null
+                    chai.request(app)
+                        .delete('/auth/delete-refresh-token')
+                        .send({ refreshToken: token.token })
+                        .end((err, res) => {
+                            if (err) {
+                                done(err)
+                            }
+                            res.should.have.status(200)
+                            res.text.should.equal(
+                                'Refresh token deleted successfully'
+                            )
+
+                            refreshTokenModel
+                                .exists({
+                                    token: token.token
+                                })
+                                .then((exists) => {
+                                    chai.expect(exists).to.be.null
+                                    done()
+                                })
+                                .catch((err) => {
+                                    done(err)
+                                })
+                        })
+                })
+                .catch((err) => {
+                    done(err)
+                })
+        })
+
+        it('should return 404 if refresh token not found', (done) => {
+            chai.request(app)
+                .delete('/auth/delete-refresh-token')
+                .send({ refreshToken: 'non-existent-token' })
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(404)
+                    res.text.should.equal('Refresh token not found')
+                    done()
+                })
+        })
+
+        it('should return 400 if refresh token not provided', (done) => {
+            chai.request(app)
+                .delete('/auth/delete-refresh-token')
+                .send({})
+                .end((err, res) => {
+                    if (err) {
+                        done(err)
+                    }
+                    res.should.have.status(400)
+                    res.text.should.equal('Refresh token required')
+                    done()
+                })
+        })
+    })
+
     describe('GET /doesnt-exist', () => {
         it('should return 404 if route does not exist', (done) => {
             chai.request(app)
