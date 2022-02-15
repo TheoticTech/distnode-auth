@@ -392,7 +392,7 @@ describe('Authentication routes', function () {
                                 refreshRes.should.have.status(200)
                                 refreshRes.should.have.cookie('accessToken')
                                 refreshRes.text.should.equal(
-                                    'Access token refreshed'
+                                    'Access token refreshed successfully'
                                 )
                                 done()
                             })

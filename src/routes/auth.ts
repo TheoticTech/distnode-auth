@@ -193,7 +193,9 @@ authRoutes.post(
 
                     res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
 
-                    return res.status(200).send('Access token refreshed')
+                    return res
+                        .status(200)
+                        .send('Access token refreshed successfully')
                 }
             } else {
                 return res.status(401).send('Refresh token required')
