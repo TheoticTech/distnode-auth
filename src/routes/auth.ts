@@ -9,6 +9,7 @@ import { refreshTokenModel } from '../models/refreshToken'
 // Configurations
 import {
     ENVIRONMENT,
+    DOMAIN_NAME,
     JWT_ACCESS_TOKEN_SECRET,
     JWT_ACCESS_TOKEN_TTL,
     JWT_REFRESH_TOKEN_SECRET,
@@ -19,7 +20,8 @@ import {
 const COOKIE_OPTIONS: CookieOptions = {
     httpOnly: true,
     secure: ENVIRONMENT === 'production',
-    sameSite: 'strict'
+    sameSite: 'strict',
+    domain: ENVIRONMENT === 'production' ? DOMAIN_NAME : undefined
 }
 
 if (!JWT_ACCESS_TOKEN_SECRET || !JWT_REFRESH_TOKEN_SECRET) {

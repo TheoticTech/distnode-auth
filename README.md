@@ -8,7 +8,6 @@ sets the MongoDB URI to `mongodb://localhost:27017/test`.
 Additionally, this application requires two JWT secret keys, configured by
 setting a `JWT_ACCESS_TOKEN_SECRET` and `JWT_REFRESH_TOKEN_SECRET` 
 environment variable. For development and testing, the following can be used:
-
 ```sh
 export JWT_ACCESS_TOKEN_SECRET='super-secret-key-1'
 export JWT_REFRESH_TOKEN_SECRET='super-secret-key-2'

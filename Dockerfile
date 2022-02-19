@@ -15,6 +15,6 @@ COPY . .
 # Configure app to run in production mode
 ENV NODE_ENV=production
 
-# Execute app on port 3001
-EXPOSE 3001
+# Execute app on port 3000
+EXPOSE 3000
 CMD [ "npm", "start" ]

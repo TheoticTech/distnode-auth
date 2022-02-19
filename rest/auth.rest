@@ -1,5 +1,5 @@
 ### Register - add new user and set cookie
-POST http://localhost:3001/auth/register
+POST http://localhost:3000/auth/register
 content-type: application/json
 
 {
@@ -11,7 +11,7 @@ content-type: application/json
 }
 
 ### Login - get tokens and set in cookie
-POST http://localhost:3001/auth/login
+POST http://localhost:3000/auth/login
 content-type: application/json
 
 {
@@ -20,19 +20,19 @@ content-type: application/json
 }
 
 ### Refresh - update accessToken using refresh token
-POST http://localhost:3001/auth/refresh
+POST http://localhost:3000/auth/refresh
 content-type: application/json
 
 {}
 
 ### Logout - invalidate cookies and delete current refresh token
-POST http://localhost:3001/auth/logout
+POST http://localhost:3000/auth/logout
 content-type: application/json
 
 {}
 
 ### Delete refresh token - overwrite cookies and delete refresh token
-DELETE http://localhost:3001/auth/delete-refresh-token
+DELETE http://localhost:3000/auth/delete-refresh-token
 Content-Type: application/json
 
 {
@@ -40,7 +40,7 @@ Content-Type: application/json
 }
 
 ### Delete user - remove user, overwrite cookies, and delete refresh tokens
-DELETE http://localhost:3001/auth/delete-user
+DELETE http://localhost:3000/auth/delete-user
 Content-Type: application/json
 
 {
