@@ -30,7 +30,7 @@ COPY --from=build /usr/src/app/build /usr/src/app
 # Configure app to run in production mode
 ENV NODE_ENV=production
 
-# Execute app on port 80
+# Execute app on port 3000
 ENV PORT=3000
 EXPOSE 3000
 CMD ["node", "/usr/src/app/app.js"]
