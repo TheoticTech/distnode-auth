@@ -31,6 +31,6 @@ COPY --from=build /usr/src/app/build /usr/src/app
 ENV NODE_ENV=production
 
 # Execute app on port 80
-ENV PORT=80
-EXPOSE 80
+ENV PORT=3000
+EXPOSE 3000
 CMD ["node", "/usr/src/app/app.js"]
