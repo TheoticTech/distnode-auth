@@ -48,6 +48,14 @@ mongoose
 app.use(corsMiddleware)
 app.use('/auth', authRoutes)
 
+app.get('/health', (req, res): express.Response => {
+    try {
+        return res.status(200).send('OK')
+    } catch (err) {
+        return res.status(500).send('An error occurred')
+    }
+})
+
 app.use('*', (req, res) => {
     return res.status(404).send('Route not found')
 })
