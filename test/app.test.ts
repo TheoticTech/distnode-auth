@@ -41,7 +41,10 @@ describe('Authentication routes', function () {
           res.should.have.status(201)
           res.should.have.cookie('accessToken')
           res.should.have.cookie('refreshToken')
-          res.text.should.equal('User created successfully')
+          res.body.should.have.property(
+            'registrationSuccess',
+            'User created successfully'
+          )
           done()
         })
     })
@@ -56,7 +59,10 @@ describe('Authentication routes', function () {
             done(err)
           }
           res.should.have.status(400)
-          res.text.should.equal('All input is required')
+          res.body.should.have.property(
+            'registrationError',
+            'All input is required'
+          )
           done()
         })
     })
@@ -237,7 +243,10 @@ describe('Authentication routes', function () {
               done(err)
             }
             res.should.have.status(409)
-            res.text.should.equal('Username is already in use')
+            res.body.should.have.property(
+              'registrationError',
+              'Username is already in use'
+            )
             done()
           })
       })
@@ -269,7 +278,10 @@ describe('Authentication routes', function () {
               done(err)
             }
             res.should.have.status(409)
-            res.text.should.equal('Email is already in use')
+            res.body.should.have.property(
+              'registrationError',
+              'Email is already in use'
+            )
             done()
           })
       })
@@ -294,7 +306,10 @@ describe('Authentication routes', function () {
             res.should.have.status(200)
             res.should.have.cookie('accessToken')
             res.should.have.cookie('refreshToken')
-            res.text.should.equal('User logged in successfully')
+            res.body.should.have.property(
+              'loginSuccess',
+              'User logged in successfully'
+            )
             done()
           })
       })
@@ -317,7 +332,7 @@ describe('Authentication routes', function () {
             res.should.have.status(401)
             res.should.not.have.cookie('accessToken')
             res.should.not.have.cookie('refreshToken')
-            res.text.should.equal('Invalid credentials')
+            res.body.should.have.property('loginError', 'Invalid credentials')
             done()
           })
       })
@@ -339,7 +354,10 @@ describe('Authentication routes', function () {
           res.should.have.status(400)
           res.should.not.have.cookie('accessToken')
           res.should.not.have.cookie('refreshToken')
-          res.text.should.equal('Email and password required')
+          res.body.should.have.property(
+            'loginError',
+            'Email and password required'
+          )
           done()
         })
     })
@@ -360,7 +378,10 @@ describe('Authentication routes', function () {
           res.should.have.status(400)
           res.should.not.have.cookie('accessToken')
           res.should.not.have.cookie('refreshToken')
-          res.text.should.equal('Email and password required')
+          res.body.should.have.property(
+            'loginError',
+            'Email and password required'
+          )
           done()
         })
     })
@@ -381,7 +402,7 @@ describe('Authentication routes', function () {
           res.should.have.status(401)
           res.should.not.have.cookie('accessToken')
           res.should.not.have.cookie('refreshToken')
-          res.text.should.equal('Invalid credentials')
+          res.body.should.have.property('loginError', 'Invalid credentials')
           done()
         })
     })
@@ -406,7 +427,8 @@ describe('Authentication routes', function () {
             return agent.post('/auth/refresh').then((refreshRes) => {
               refreshRes.should.have.status(200)
               refreshRes.should.have.cookie('accessToken')
-              refreshRes.text.should.equal(
+              refreshRes.body.should.have.property(
+                'refreshSuccess',
                 'Access token refreshed successfully'
               )
               done()
@@ -429,7 +451,10 @@ describe('Authentication routes', function () {
         .then((res) => {
           res.should.have.status(401)
           res.should.have.not.have.cookie('accessToken')
-          res.text.should.equal('Refresh token required')
+          res.body.should.have.property(
+            'refreshError',
+            'Refresh token required'
+          )
           done()
         })
         .catch((err) => {
@@ -451,7 +476,10 @@ describe('Authentication routes', function () {
             refreshRes.should.have.status(401)
             refreshRes.should.not.have.cookie('accessToken')
             refreshRes.should.not.have.cookie('refreshToken')
-            refreshRes.text.should.equal('Invalid refresh token')
+            refreshRes.body.should.have.property(
+              'refreshError',
+              'Invalid refresh token'
+            )
             done()
           })
           .catch((err) => {
@@ -483,7 +511,10 @@ describe('Authentication routes', function () {
                 done(err)
               }
               res.should.have.status(200)
-              res.text.should.equal('User logged out successfully')
+              res.body.should.have.property(
+                'logoutSuccess',
+                'User logged out successfully'
+              )
 
               refreshTokenModel
                 .exists({
@@ -514,7 +545,10 @@ describe('Authentication routes', function () {
             done(err)
           }
           res.should.have.status(200)
-          res.text.should.equal('User logged out successfully')
+          res.body.should.have.property(
+            'logoutSuccess',
+            'User logged out successfully'
+          )
           done()
         })
     })
@@ -529,7 +563,92 @@ describe('Authentication routes', function () {
             done(err)
           }
           res.should.have.status(200)
-          res.text.should.equal('User logged out successfully')
+          res.body.should.have.property(
+            'logoutSuccess',
+            'User logged out successfully'
+          )
+          done()
+        })
+    })
+  })
+
+  describe('DELETE /auth/delete-refresh-token', () => {
+    beforeEach(async function () {
+      await refreshTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid refresh token provided and deleted', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .delete('/auth/delete-refresh-token')
+            .send({ refreshToken: token.token })
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(200)
+              res.body.should.have.property(
+                'deleteRefreshSuccess',
+                'Refresh token deleted successfully'
+              )
+
+              refreshTokenModel
+                .exists({
+                  token: token.token
+                })
+                .then((exists) => {
+                  chai.expect(exists).to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if refresh token not found', (done) => {
+      chai
+        .request(app)
+        .delete('/auth/delete-refresh-token')
+        .send({ refreshToken: 'non-existent-token' })
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(404)
+          res.body.should.have.property(
+            'deleteRefreshError',
+            'Refresh token not found'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if refresh token not provided', (done) => {
+      chai
+        .request(app)
+        .delete('/auth/delete-refresh-token')
+        .send({})
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'deleteRefreshError',
+            'Refresh token required'
+          )
           done()
         })
     })
@@ -559,7 +678,10 @@ describe('Authentication routes', function () {
                 deleteRes.should.have.status(200)
                 deleteRes.should.not.have.cookie('accessToken')
                 deleteRes.should.not.have.cookie('refreshToken')
-                deleteRes.text.should.equal('User deleted successfully')
+                deleteRes.body.should.have.property(
+                  'deleteUserSuccess',
+                  'User deleted successfully'
+                )
 
                 userModel
                   .exists({
@@ -604,7 +726,10 @@ describe('Authentication routes', function () {
             done(err)
           }
           res.should.have.status(400)
-          res.text.should.equal('Email and password required')
+          res.body.should.have.property(
+            'deleteUserError',
+            'Email and password required'
+          )
           done()
         })
     })
@@ -619,80 +744,10 @@ describe('Authentication routes', function () {
             done(err)
           }
           res.should.have.status(401)
-          res.text.should.equal('Invalid credentials')
-          done()
-        })
-    })
-  })
-
-  describe('DELETE /auth/delete-refresh-token', () => {
-    beforeEach(async function () {
-      await refreshTokenModel.deleteMany()
-    })
-
-    it('should return 200 if valid refresh token provided and deleted', (done) => {
-      refreshTokenModel
-        .create({
-          token: 'token',
-          user_id: new mongoose.Types.ObjectId()
-        })
-        .then((token) => {
-          chai.expect(token).not.to.be.null
-          chai
-            .request(app)
-            .delete('/auth/delete-refresh-token')
-            .send({ refreshToken: token.token })
-            .end((err, res) => {
-              if (err) {
-                done(err)
-              }
-              res.should.have.status(200)
-              res.text.should.equal('Refresh token deleted successfully')
-
-              refreshTokenModel
-                .exists({
-                  token: token.token
-                })
-                .then((exists) => {
-                  chai.expect(exists).to.be.null
-                  done()
-                })
-                .catch((err) => {
-                  done(err)
-                })
-            })
-        })
-        .catch((err) => {
-          done(err)
-        })
-    })
-
-    it('should return 404 if refresh token not found', (done) => {
-      chai
-        .request(app)
-        .delete('/auth/delete-refresh-token')
-        .send({ refreshToken: 'non-existent-token' })
-        .end((err, res) => {
-          if (err) {
-            done(err)
-          }
-          res.should.have.status(404)
-          res.text.should.equal('Refresh token not found')
-          done()
-        })
-    })
-
-    it('should return 400 if refresh token not provided', (done) => {
-      chai
-        .request(app)
-        .delete('/auth/delete-refresh-token')
-        .send({})
-        .end((err, res) => {
-          if (err) {
-            done(err)
-          }
-          res.should.have.status(400)
-          res.text.should.equal('Refresh token required')
+          res.body.should.have.property(
+            'deleteUserError',
+            'Invalid credentials'
+          )
           done()
         })
     })

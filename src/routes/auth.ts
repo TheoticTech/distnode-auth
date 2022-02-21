@@ -43,15 +43,21 @@ authRoutes.post(
       const { firstName, lastName, username, email, password } = req.body
 
       if (!(firstName && lastName && username && email && password)) {
-        return res.status(400).send('All input is required')
+        return res
+          .status(400)
+          .json({ registrationError: 'All input is required' })
       }
 
       if (await userModel.findOne({ email })) {
-        return res.status(409).send('Email is already in use')
+        return res
+          .status(409)
+          .json({ registrationError: 'Email is already in use' })
       }
 
       if (await userModel.findOne({ username })) {
-        return res.status(409).send('Username is already in use')
+        return res
+          .status(409)
+          .json({ registrationError: 'Username is already in use' })
       }
 
       if (
@@ -59,24 +65,22 @@ authRoutes.post(
           password
         ) === false
       ) {
-        return res
-          .status(400)
-          .send(
+        return res.status(400).json({
+          registrationError:
             'Password must contain at least one number, ' +
-              'one uppercase letter, ' +
-              'one lowercase letter, ' +
-              'one special character, ' +
-              'and be 8 to 64 characters long'
-          )
+            'one uppercase letter, ' +
+            'one lowercase letter, ' +
+            'one special character, ' +
+            'and be 8 to 64 characters long'
+        })
       }
 
       if (/^([a-zA-Z0-9]){1,24}$/.test(username) === false) {
-        return res
-          .status(400)
-          .send(
+        return res.status(400).json({
+          registrationError:
             'Username must only contain numbers, letters, ' +
-              'and a maximum of 24 characters'
-          )
+            'and a maximum of 24 characters'
+        })
       }
 
       const user = await new userModel({
@@ -110,10 +114,14 @@ authRoutes.post(
       res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
       res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS)
 
-      return res.status(201).send('User created successfully')
+      return res
+        .status(201)
+        .json({ registrationSuccess: 'User created successfully' })
     } catch (err) {
       console.error(err)
-      return res.status(500).send('An error occurred')
+      return res.status(500).json({
+        registrationError: 'An unknown error occurred, please try again later'
+      })
     }
   }
 )
@@ -128,7 +136,9 @@ authRoutes.post(
       const { email, password } = req.body
 
       if (!(email && password)) {
-        return res.status(400).send('Email and password required')
+        return res
+          .status(400)
+          .json({ loginError: 'Email and password required' })
       }
 
       const user = await userModel.findOne({ email })
@@ -156,13 +166,15 @@ authRoutes.post(
         res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
         res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS)
 
-        return res.status(200).send('User logged in successfully')
+        return res
+          .status(200)
+          .json({ loginSuccess: 'User logged in successfully' })
       }
 
-      return res.status(401).send('Invalid credentials')
+      return res.status(401).json({ loginError: 'Invalid credentials' })
     } catch (err) {
       console.error(err)
-      return res.status(500).send('An error occurred')
+      return res.status(500).json({ loginError: 'An error occurred' })
     }
   }
 )
@@ -192,19 +204,21 @@ authRoutes.post(
 
           res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
 
-          return res.status(200).send('Access token refreshed successfully')
+          return res
+            .status(200)
+            .json({ refreshSuccess: 'Access token refreshed successfully' })
         }
       } else {
-        return res.status(401).send('Refresh token required')
+        return res.status(401).json({ refreshError: 'Refresh token required' })
       }
 
-      return res.status(401).send('Invalid refresh token')
+      return res.status(401).json({ refreshError: 'Invalid refresh token' })
     } catch (err) {
       if (err instanceof jwt.JsonWebTokenError) {
-        return res.status(401).send('Invalid refresh token')
+        return res.status(401).json({ refreshError: 'Invalid refresh token' })
       } else {
         console.error(err)
-        return res.status(500).send('An error occurred')
+        return res.status(500).json({ refreshError: 'An error occurred' })
       }
     }
   }
@@ -226,10 +240,12 @@ authRoutes.post(
         await refreshTokenModel.deleteOne({ token: refreshToken })
       }
 
-      return res.status(200).send('User logged out successfully')
+      return res
+        .status(200)
+        .json({ logoutSuccess: 'User logged out successfully' })
     } catch (err) {
       console.error(err)
-      return res.status(500).send('An error occurred')
+      return res.status(500).json({ logoutError: 'An error occurred' })
     }
   }
 )
@@ -250,16 +266,22 @@ authRoutes.delete(
 
         if (refreshTokenExists) {
           await refreshTokenModel.deleteOne({ token: refreshToken })
-          return res.status(200).send('Refresh token deleted successfully')
+          return res.status(200).json({
+            deleteRefreshSuccess: 'Refresh token deleted successfully'
+          })
         } else {
-          return res.status(404).send('Refresh token not found')
+          return res
+            .status(404)
+            .json({ deleteRefreshError: 'Refresh token not found' })
         }
       }
 
-      return res.status(400).send('Refresh token required')
+      return res
+        .status(400)
+        .json({ deleteRefreshError: 'Refresh token required' })
     } catch (err) {
       console.error(err)
-      return res.status(500).send('An error occurred')
+      return res.status(500).json({ deleteRefreshError: 'An error occurred' })
     }
   }
 )
@@ -274,7 +296,9 @@ authRoutes.delete(
       const { email, password } = req.body
 
       if (!(email && password)) {
-        return res.status(400).send('Email and password required')
+        return res
+          .status(400)
+          .json({ deleteUserError: 'Email and password required' })
       }
 
       const user = await userModel.findOne({ email })
@@ -286,13 +310,15 @@ authRoutes.delete(
         res.cookie('accessToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
         res.cookie('refreshToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
 
-        return res.status(200).send('User deleted successfully')
+        return res
+          .status(200)
+          .json({ deleteUserSuccess: 'User deleted successfully' })
       }
 
-      return res.status(401).send('Invalid credentials')
+      return res.status(401).json({ deleteUserError: 'Invalid credentials' })
     } catch (err) {
       console.error(err)
-      return res.status(500).send('An error occurred')
+      return res.status(500).json({ deleteUserError: 'An error occurred' })
     }
   }
 )
