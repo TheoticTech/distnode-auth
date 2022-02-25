@@ -179,7 +179,7 @@ authRoutes.post(
   }
 )
 
-authRoutes.post(
+authRoutes.get(
   '/refresh',
   async (
     req: express.Request,

@@ -424,7 +424,7 @@ describe('Authentication routes', function () {
             loginRes.should.have.cookie('accessToken')
             loginRes.should.have.cookie('refreshToken')
 
-            return agent.post('/auth/refresh').then((refreshRes) => {
+            return agent.get('/auth/refresh').then((refreshRes) => {
               refreshRes.should.have.status(200)
               refreshRes.should.have.cookie('accessToken')
               refreshRes.body.should.have.property(
@@ -447,7 +447,7 @@ describe('Authentication routes', function () {
       const agent = chai.request.agent(app)
 
       agent
-        .post('/auth/refresh')
+        .get('/auth/refresh')
         .then((res) => {
           res.should.have.status(401)
           res.should.have.not.have.cookie('accessToken')
@@ -470,7 +470,7 @@ describe('Authentication routes', function () {
         const agent = chai.request.agent(app)
 
         agent
-          .post('/auth/refresh')
+          .get('/auth/refresh')
           .set('Cookie', 'refreshToken=invalid-token')
           .then((refreshRes) => {
             refreshRes.should.have.status(401)

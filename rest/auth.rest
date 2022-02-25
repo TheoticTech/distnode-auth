@@ -20,10 +20,7 @@ content-type: application/json
 }
 
 ### Refresh - update accessToken using refresh token
-POST http://localhost:3000/auth/refresh
-content-type: application/json
-
-{}
+GET http://localhost:3000/auth/refresh
 
 ### Logout - invalidate cookies and delete current refresh token
 POST http://localhost:3000/auth/logout
