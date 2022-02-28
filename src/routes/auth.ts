@@ -3,8 +3,9 @@ import express, { CookieOptions } from 'express'
 import jwt from 'jsonwebtoken'
 
 // Local
-import { userModel } from '../models/user'
+import queryNeo4j from '../utils/queryNeo4j'
 import { refreshTokenModel } from '../models/refreshToken'
+import { userModel } from '../models/user'
 
 // Configurations
 import {
@@ -24,6 +25,7 @@ const COOKIE_OPTIONS: CookieOptions = {
   domain: ENVIRONMENT === 'production' ? DOMAIN_NAME : undefined
 }
 
+// Ensure necessary configurations are set
 if (!JWT_ACCESS_TOKEN_SECRET || !JWT_REFRESH_TOKEN_SECRET) {
   console.error(
     'JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET must be set'
@@ -90,6 +92,17 @@ authRoutes.post(
         email: email.toLowerCase(),
         password
       }).save()
+
+      await queryNeo4j(
+        req.app.locals.driver,
+        'CREATE (p:Person {' +
+        'firstName: $firstName, ' +
+        'lastName: $lastName, ' +
+        'username: $username, ' +
+        'email: $email' +
+        '}) RETURN p',
+        { firstName, lastName, username, email }
+      )
 
       const accessToken = jwt.sign(
         { user_id: user._id },
@@ -306,6 +319,14 @@ authRoutes.delete(
       if (user && (await user.validPassword(password))) {
         await userModel.deleteOne({ _id: user._id })
         await refreshTokenModel.deleteMany({ user_id: user._id })
+
+        await queryNeo4j(
+          req.app.locals.driver,
+          'MATCH (p:Person {' +
+          'email: $email' +
+          '}) DELETE p',
+          { email }
+        )
 
         res.cookie('accessToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
         res.cookie('refreshToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
