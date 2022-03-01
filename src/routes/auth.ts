@@ -96,11 +96,11 @@ authRoutes.post(
       await queryNeo4j(
         req.app.locals.driver,
         'CREATE (p:Person {' +
-        'firstName: $firstName, ' +
-        'lastName: $lastName, ' +
-        'username: $username, ' +
-        'email: $email' +
-        '}) RETURN p',
+          'firstName: $firstName, ' +
+          'lastName: $lastName, ' +
+          'username: $username, ' +
+          'email: $email' +
+          '}) RETURN p',
         { firstName, lastName, username, email }
       )
 
@@ -322,9 +322,7 @@ authRoutes.delete(
 
         await queryNeo4j(
           req.app.locals.driver,
-          'MATCH (p:Person {' +
-          'email: $email' +
-          '}) DELETE p',
+          'MATCH (p:Person {email: $email}) DELETE p',
           { email }
         )
 
