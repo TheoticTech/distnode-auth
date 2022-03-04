@@ -13,7 +13,7 @@ export NEO4J_PASSWORD='your-neo4j-password'
 export NEO4J_URI='neo4j+s://your-neo4j-uri.io:7687'
 ```
 
-Additionally, this application requires two JWT secret keys, configured by
+Additionally, this application requires two JWT secrets, configured by
 setting a `JWT_ACCESS_TOKEN_SECRET` and `JWT_REFRESH_TOKEN_SECRET` 
 environment variable. For development and testing, the following can be used:
 ```sh
