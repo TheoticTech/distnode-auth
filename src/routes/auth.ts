@@ -227,9 +227,9 @@ authRoutes.get(
           token: refreshToken
         })
 
-        const isValidToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
+        const isValidRefreshToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
 
-        if (existingRefreshToken && isValidToken) {
+        if (existingRefreshToken && isValidRefreshToken) {
           const accessToken = jwt.sign(
             { user_id: existingRefreshToken.user_id },
             JWT_ACCESS_TOKEN_SECRET,
@@ -272,9 +272,9 @@ authRoutes.get(
           token: refreshToken
         })
 
-        const isValidToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
+        const isValidRefreshToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
 
-        if (existingRefreshToken && isValidToken) {
+        if (existingRefreshToken && isValidRefreshToken) {
           const csrfToken = jwt.sign(
             { user_id: existingRefreshToken.user_id },
             CSRF_TOKEN_SECRET,
@@ -374,7 +374,28 @@ authRoutes.delete(
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      const { email, password } = req.body
+      const csrfTokenCookie = req.cookies?.csrfToken
+      const { email, password, csrfToken: csrfTokenBody } = req.body
+
+      if (!csrfTokenCookie || !csrfTokenBody) {
+        return res.status(401).json({ csrfError: 'CSRF cookie and body token required' })
+      }
+
+      if (csrfTokenCookie !== csrfTokenBody) {
+        return res.status(401).json({ csrfError: 'CSRF token mismatch' })
+      }
+
+      try {
+        jwt.verify(csrfTokenCookie, CSRF_TOKEN_SECRET)
+      } catch (err) {
+        if (err instanceof jwt.TokenExpiredError) {
+          // Don't change the error message, it is used by the frontend
+          return res.status(401).json({ csrfError: 'Expired CSRF token' })
+        } else {
+          return res.status(401).json({ csrfError: 'Invalid CSRF token' })
+        }
+      }
+
 
       if (!(email && password)) {
         return res
