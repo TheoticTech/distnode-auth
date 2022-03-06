@@ -1,5 +1,7 @@
 const ENVIRONMENT = process.env.NODE_ENV || 'development'
 const ARGON_MEMORY_COST = 16384
+const CSRF_TOKEN_SECRET = process.env.CSRF_TOKEN_SECRET
+const CSRF_TOKEN_TTL = '1h'
 const DOMAIN_NAME = process.env.DOMAIN_NAME || 'distnode.com'
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3002'
 const JWT_ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET
@@ -16,6 +18,8 @@ const PORT = process.env.PORT || 3000
 export {
   ENVIRONMENT,
   ARGON_MEMORY_COST,
+  CSRF_TOKEN_SECRET,
+  CSRF_TOKEN_TTL,
   DOMAIN_NAME,
   FRONTEND_ORIGIN,
   JWT_ACCESS_TOKEN_SECRET,

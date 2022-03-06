@@ -41,6 +41,7 @@ describe('Authentication routes', function () {
           res.should.have.status(201)
           res.should.have.cookie('accessToken')
           res.should.have.cookie('refreshToken')
+          res.should.have.cookie('csrfToken')
           res.body.should.have.property(
             'registrationSuccess',
             'User created successfully'
@@ -306,6 +307,7 @@ describe('Authentication routes', function () {
             res.should.have.status(200)
             res.should.have.cookie('accessToken')
             res.should.have.cookie('refreshToken')
+            res.should.have.cookie('csrfToken')
             res.body.should.have.property(
               'loginSuccess',
               'User logged in successfully'
@@ -332,6 +334,7 @@ describe('Authentication routes', function () {
             res.should.have.status(401)
             res.should.not.have.cookie('accessToken')
             res.should.not.have.cookie('refreshToken')
+            res.should.not.have.cookie('csrfToken')
             res.body.should.have.property('loginError', 'Invalid credentials')
             done()
           })
@@ -354,6 +357,7 @@ describe('Authentication routes', function () {
           res.should.have.status(400)
           res.should.not.have.cookie('accessToken')
           res.should.not.have.cookie('refreshToken')
+          res.should.not.have.cookie('csrfToken')
           res.body.should.have.property(
             'loginError',
             'Email and password required'
@@ -378,6 +382,7 @@ describe('Authentication routes', function () {
           res.should.have.status(400)
           res.should.not.have.cookie('accessToken')
           res.should.not.have.cookie('refreshToken')
+          res.should.not.have.cookie('csrfToken')
           res.body.should.have.property(
             'loginError',
             'Email and password required'
@@ -402,13 +407,14 @@ describe('Authentication routes', function () {
           res.should.have.status(401)
           res.should.not.have.cookie('accessToken')
           res.should.not.have.cookie('refreshToken')
+          res.should.not.have.cookie('csrfToken')
           res.body.should.have.property('loginError', 'Invalid credentials')
           done()
         })
     })
   })
 
-  describe('POST /auth/refresh', () => {
+  describe('POST /auth/refresh-access-token', () => {
     beforeEach(async function () {
       await userModel.deleteMany()
     })
@@ -423,16 +429,19 @@ describe('Authentication routes', function () {
           .then((loginRes) => {
             loginRes.should.have.cookie('accessToken')
             loginRes.should.have.cookie('refreshToken')
+            loginRes.should.have.cookie('csrfToken')
 
-            return agent.get('/auth/refresh').then((refreshRes) => {
-              refreshRes.should.have.status(200)
-              refreshRes.should.have.cookie('accessToken')
-              refreshRes.body.should.have.property(
-                'refreshSuccess',
-                'Access token refreshed successfully'
-              )
-              done()
-            })
+            return agent
+              .get('/auth/refresh-access-token')
+              .then((refreshRes) => {
+                refreshRes.should.have.status(200)
+                refreshRes.should.have.cookie('accessToken')
+                refreshRes.body.should.have.property(
+                  'refreshSuccess',
+                  'Access token refreshed successfully'
+                )
+                done()
+              })
           })
           .catch((err) => {
             done(err)
@@ -447,10 +456,11 @@ describe('Authentication routes', function () {
       const agent = chai.request.agent(app)
 
       agent
-        .get('/auth/refresh')
+        .get('/auth/refresh-access-token')
         .then((res) => {
           res.should.have.status(401)
           res.should.have.not.have.cookie('accessToken')
+          res.should.have.not.have.cookie('csrfToken')
           res.body.should.have.property(
             'refreshError',
             'Refresh token required'
@@ -470,12 +480,102 @@ describe('Authentication routes', function () {
         const agent = chai.request.agent(app)
 
         agent
-          .get('/auth/refresh')
+          .get('/auth/refresh-access-token')
           .set('Cookie', 'refreshToken=invalid-token')
           .then((refreshRes) => {
             refreshRes.should.have.status(401)
             refreshRes.should.not.have.cookie('accessToken')
             refreshRes.should.not.have.cookie('refreshToken')
+            refreshRes.should.not.have.cookie('csrfToken')
+            refreshRes.body.should.have.property(
+              'refreshError',
+              'Invalid refresh token'
+            )
+            done()
+          })
+          .catch((err) => {
+            done(err)
+          })
+          .finally(() => {
+            agent.close()
+          })
+      })
+    })
+  })
+
+  describe('POST /auth/refresh-csrf-token', () => {
+    beforeEach(async function () {
+      await userModel.deleteMany()
+    })
+
+    it('should return 200 and set token cookies for valid refresh', (done) => {
+      userModel.create(validRegistrationPayload).then(() => {
+        const agent = chai.request.agent(app)
+
+        agent
+          .post('/auth/login')
+          .send(validRegistrationPayload)
+          .then((loginRes) => {
+            loginRes.should.have.cookie('accessToken')
+            loginRes.should.have.cookie('refreshToken')
+            loginRes.should.have.cookie('csrfToken')
+
+            return agent
+              .get('/auth/refresh-csrf-token')
+              .then((refreshRes) => {
+                refreshRes.should.have.status(200)
+                refreshRes.should.have.cookie('csrfToken')
+                refreshRes.body.should.have.property(
+                  'refreshSuccess',
+                  'CSRF token refreshed successfully'
+                )
+                done()
+              })
+          })
+          .catch((err) => {
+            done(err)
+          })
+          .finally(() => {
+            agent.close()
+          })
+      })
+    })
+
+    it('should return 401 if no refresh token provided', (done) => {
+      const agent = chai.request.agent(app)
+
+      agent
+        .get('/auth/refresh-csrf-token')
+        .then((res) => {
+          res.should.have.status(401)
+          res.should.have.not.have.cookie('accessToken')
+          res.should.have.not.have.cookie('csrfToken')
+          res.body.should.have.property(
+            'refreshError',
+            'Refresh token required'
+          )
+          done()
+        })
+        .catch((err) => {
+          done(err)
+        })
+        .finally(() => {
+          agent.close()
+        })
+    })
+
+    it('should return 401 if invalid refresh token provided', (done) => {
+      userModel.create(validRegistrationPayload).then(() => {
+        const agent = chai.request.agent(app)
+
+        agent
+          .get('/auth/refresh-csrf-token')
+          .set('Cookie', 'refreshToken=invalid-token')
+          .then((refreshRes) => {
+            refreshRes.should.have.status(401)
+            refreshRes.should.not.have.cookie('accessToken')
+            refreshRes.should.not.have.cookie('refreshToken')
+            refreshRes.should.not.have.cookie('csrfToken')
             refreshRes.body.should.have.property(
               'refreshError',
               'Invalid refresh token'
@@ -670,6 +770,7 @@ describe('Authentication routes', function () {
           .then((loginRes) => {
             loginRes.should.have.cookie('accessToken')
             loginRes.should.have.cookie('refreshToken')
+            loginRes.should.have.cookie('csrfToken')
 
             return agent
               .delete('/auth/delete-user')
@@ -678,6 +779,7 @@ describe('Authentication routes', function () {
                 deleteRes.should.have.status(200)
                 deleteRes.should.not.have.cookie('accessToken')
                 deleteRes.should.not.have.cookie('refreshToken')
+                deleteRes.should.not.have.cookie('csrfToken')
                 deleteRes.body.should.have.property(
                   'deleteUserSuccess',
                   'User deleted successfully'

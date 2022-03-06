@@ -10,6 +10,8 @@ import { userModel } from '../models/user'
 // Configurations
 import {
   ENVIRONMENT,
+  CSRF_TOKEN_SECRET,
+  CSRF_TOKEN_TTL,
   DOMAIN_NAME,
   JWT_ACCESS_TOKEN_SECRET,
   JWT_ACCESS_TOKEN_TTL,
@@ -18,17 +20,27 @@ import {
 } from '../config'
 
 // Constants
-const COOKIE_OPTIONS: CookieOptions = {
+const AUTH_COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
   secure: ENVIRONMENT === 'production',
   sameSite: 'strict',
   domain: ENVIRONMENT === 'production' ? DOMAIN_NAME : undefined
 }
+const CSRF_COOKIE_OPTIONS: CookieOptions = {
+  ...AUTH_COOKIE_OPTIONS,
+  httpOnly: false
+}
 
 // Ensure necessary configurations are set
-if (!JWT_ACCESS_TOKEN_SECRET || !JWT_REFRESH_TOKEN_SECRET) {
+if (
+  [CSRF_TOKEN_SECRET, JWT_ACCESS_TOKEN_SECRET, JWT_REFRESH_TOKEN_SECRET].some(
+    (e) => !e
+  )
+) {
   console.error(
-    'JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET must be set'
+    'CSRF_TOKEN_SECRET, ' +
+      'JWT_ACCESS_TOKEN_SECRET and ' +
+      'JWT_REFRESH_TOKEN_SECRET must be set'
   )
   process.exit(1)
 }
@@ -118,14 +130,18 @@ authRoutes.post(
           expiresIn: JWT_REFRESH_TOKEN_TTL
         }
       )
+      const csrfToken = jwt.sign({ user_id: user._id }, CSRF_TOKEN_SECRET, {
+        expiresIn: CSRF_TOKEN_TTL
+      })
 
       await refreshTokenModel.create({
         user_id: user._id,
         token: refreshToken
       })
 
-      res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
-      res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS)
+      res.cookie('accessToken', accessToken, AUTH_COOKIE_OPTIONS)
+      res.cookie('refreshToken', refreshToken, AUTH_COOKIE_OPTIONS)
+      res.cookie('csrfToken', csrfToken, CSRF_COOKIE_OPTIONS)
 
       return res
         .status(201)
@@ -171,13 +187,18 @@ authRoutes.post(
           }
         )
 
+        const csrfToken = jwt.sign({ user_id: user._id }, CSRF_TOKEN_SECRET, {
+          expiresIn: CSRF_TOKEN_TTL
+        })
+
         await refreshTokenModel.create({
           user_id: user._id,
           token: refreshToken
         })
 
-        res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
-        res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS)
+        res.cookie('accessToken', accessToken, AUTH_COOKIE_OPTIONS)
+        res.cookie('refreshToken', refreshToken, AUTH_COOKIE_OPTIONS)
+        res.cookie('csrfToken', csrfToken, CSRF_COOKIE_OPTIONS)
 
         return res
           .status(200)
@@ -193,7 +214,7 @@ authRoutes.post(
 )
 
 authRoutes.get(
-  '/refresh',
+  '/refresh-access-token',
   async (
     req: express.Request,
     res: express.Response
@@ -215,11 +236,58 @@ authRoutes.get(
             { expiresIn: JWT_ACCESS_TOKEN_TTL }
           )
 
-          res.cookie('accessToken', accessToken, COOKIE_OPTIONS)
+          res.cookie('accessToken', accessToken, AUTH_COOKIE_OPTIONS)
 
           return res
             .status(200)
             .json({ refreshSuccess: 'Access token refreshed successfully' })
+        }
+      } else {
+        return res.status(401).json({ refreshError: 'Refresh token required' })
+      }
+
+      return res.status(401).json({ refreshError: 'Invalid refresh token' })
+    } catch (err) {
+      if (err instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ refreshError: 'Invalid refresh token' })
+      } else {
+        console.error(err)
+        return res.status(500).json({ refreshError: 'An error occurred' })
+      }
+    }
+  }
+)
+
+authRoutes.get(
+  '/refresh-csrf-token',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const refreshToken = req.cookies?.refreshToken
+
+      if (refreshToken) {
+        const existingRefreshToken = await refreshTokenModel.findOne({
+          token: refreshToken
+        })
+
+        const isValidToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
+
+        if (existingRefreshToken && isValidToken) {
+          const csrfToken = jwt.sign(
+            { user_id: existingRefreshToken.user_id },
+            CSRF_TOKEN_SECRET,
+            {
+              expiresIn: CSRF_TOKEN_TTL
+            }
+          )
+
+          res.cookie('csrfToken', csrfToken, CSRF_COOKIE_OPTIONS)
+
+          return res
+            .status(200)
+            .json({ refreshSuccess: 'CSRF token refreshed successfully' })
         }
       } else {
         return res.status(401).json({ refreshError: 'Refresh token required' })
@@ -244,8 +312,8 @@ authRoutes.post(
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      res.cookie('accessToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
-      res.cookie('refreshToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
+      res.cookie('accessToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
+      res.cookie('refreshToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
 
       const refreshToken = req.cookies?.refreshToken
 
@@ -326,8 +394,8 @@ authRoutes.delete(
           { email }
         )
 
-        res.cookie('accessToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
-        res.cookie('refreshToken', {}, { ...COOKIE_OPTIONS, maxAge: 0 })
+        res.cookie('accessToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
+        res.cookie('refreshToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
 
         return res
           .status(200)
