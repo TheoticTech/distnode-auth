@@ -227,7 +227,10 @@ authRoutes.get(
           token: refreshToken
         })
 
-        const isValidRefreshToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
+        const isValidRefreshToken = jwt.verify(
+          refreshToken,
+          JWT_REFRESH_TOKEN_SECRET
+        )
 
         if (existingRefreshToken && isValidRefreshToken) {
           const accessToken = jwt.sign(
@@ -272,7 +275,10 @@ authRoutes.get(
           token: refreshToken
         })
 
-        const isValidRefreshToken = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
+        const isValidRefreshToken = jwt.verify(
+          refreshToken,
+          JWT_REFRESH_TOKEN_SECRET
+        )
 
         if (existingRefreshToken && isValidRefreshToken) {
           const csrfToken = jwt.sign(
@@ -378,7 +384,9 @@ authRoutes.delete(
       const { email, password, csrfToken: csrfTokenBody } = req.body
 
       if (!csrfTokenCookie || !csrfTokenBody) {
-        return res.status(401).json({ csrfError: 'CSRF cookie and body token required' })
+        return res
+          .status(401)
+          .json({ csrfError: 'CSRF cookie and body token required' })
       }
 
       if (csrfTokenCookie !== csrfTokenBody) {
@@ -395,7 +403,6 @@ authRoutes.delete(
           return res.status(401).json({ csrfError: 'Invalid CSRF token' })
         }
       }
-
 
       if (!(email && password)) {
         return res

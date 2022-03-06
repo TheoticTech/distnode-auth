@@ -524,17 +524,15 @@ describe('Authentication routes', function () {
             loginRes.should.have.cookie('refreshToken')
             loginRes.should.have.cookie('csrfToken')
 
-            return agent
-              .get('/auth/refresh-csrf-token')
-              .then((refreshRes) => {
-                refreshRes.should.have.status(200)
-                refreshRes.should.have.cookie('csrfToken')
-                refreshRes.body.should.have.property(
-                  'refreshSuccess',
-                  'CSRF token refreshed successfully'
-                )
-                done()
-              })
+            return agent.get('/auth/refresh-csrf-token').then((refreshRes) => {
+              refreshRes.should.have.status(200)
+              refreshRes.should.have.cookie('csrfToken')
+              refreshRes.body.should.have.property(
+                'refreshSuccess',
+                'CSRF token refreshed successfully'
+              )
+              done()
+            })
           })
           .catch((err) => {
             done(err)
@@ -775,13 +773,14 @@ describe('Authentication routes', function () {
             loginRes.should.have.cookie('accessToken')
             loginRes.should.have.cookie('refreshToken')
             loginRes.should.have.cookie('csrfToken')
-            const csrfToken = loginRes['headers']['set-cookie'].filter(
-                (cookie) => cookie.includes('csrfToken')
-            )[0].split(';')[0].split('=')[1]
+            const csrfToken = loginRes['headers']['set-cookie']
+              .filter((cookie) => cookie.includes('csrfToken'))[0]
+              .split(';')[0]
+              .split('=')[1]
 
             return agent
               .delete('/auth/delete-user')
-              .send({...validRegistrationPayload, csrfToken})
+              .send({ ...validRegistrationPayload, csrfToken })
               .then((deleteRes) => {
                 deleteRes.should.have.status(200)
                 deleteRes.should.not.have.cookie('accessToken')
@@ -826,18 +825,14 @@ describe('Authentication routes', function () {
     })
 
     it('should return 401 if CSRF token missing from cookies', (done) => {
-      const csrfToken = jwt.sign(
-        { user_id: 'johndoe' },
-        CSRF_TOKEN_SECRET,
-        {
-          expiresIn: '10s'
-        }
-      )
+      const csrfToken = jwt.sign({ user_id: 'johndoe' }, CSRF_TOKEN_SECRET, {
+        expiresIn: '10s'
+      })
 
       chai
         .request(app)
         .delete('/auth/delete-user')
-        .send({csrfToken})
+        .send({ csrfToken })
         .end((err, res) => {
           if (err) {
             done(err)
@@ -852,13 +847,9 @@ describe('Authentication routes', function () {
     })
 
     it('should return 401 if CSRF token missing from body', (done) => {
-      const csrfToken = jwt.sign(
-        { user_id: 'johndoe' },
-        CSRF_TOKEN_SECRET,
-        {
-          expiresIn: '10s'
-        }
-      )
+      const csrfToken = jwt.sign({ user_id: 'johndoe' }, CSRF_TOKEN_SECRET, {
+        expiresIn: '10s'
+      })
 
       chai
         .request(app)
@@ -879,55 +870,41 @@ describe('Authentication routes', function () {
     })
 
     it('should return 401 if CSRF cookie and body mismatch', (done) => {
-      const csrfToken = jwt.sign(
-        { user_id: 'johndoe' },
-        CSRF_TOKEN_SECRET,
-        {
-          expiresIn: '10s'
-        }
-      )
+      const csrfToken = jwt.sign({ user_id: 'johndoe' }, CSRF_TOKEN_SECRET, {
+        expiresIn: '10s'
+      })
 
       chai
         .request(app)
         .delete('/auth/delete-user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
-        .send({csrfToken: 'non-existent-token'})
+        .send({ csrfToken: 'non-existent-token' })
         .end((err, res) => {
           if (err) {
             done(err)
           }
           res.should.have.status(401)
-          res.body.should.have.property(
-            'csrfError',
-            'CSRF token mismatch'
-          )
+          res.body.should.have.property('csrfError', 'CSRF token mismatch')
           done()
         })
     })
 
     it('should return 401 if CSRF token expired', (done) => {
-      const csrfToken = jwt.sign(
-        { user_id: 'johndoe' },
-        CSRF_TOKEN_SECRET,
-        {
-          expiresIn: '-1s'
-        }
-      )
+      const csrfToken = jwt.sign({ user_id: 'johndoe' }, CSRF_TOKEN_SECRET, {
+        expiresIn: '-1s'
+      })
 
       chai
         .request(app)
         .delete('/auth/delete-user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
-        .send({csrfToken})
+        .send({ csrfToken })
         .end((err, res) => {
           if (err) {
             done(err)
           }
           res.should.have.status(401)
-          res.body.should.have.property(
-            'csrfError',
-            'Expired CSRF token'
-          )
+          res.body.should.have.property('csrfError', 'Expired CSRF token')
           done()
         })
     })
@@ -937,33 +914,26 @@ describe('Authentication routes', function () {
         .request(app)
         .delete('/auth/delete-user')
         .set('Cookie', ['csrfToken=invalid-token'])
-        .send({csrfToken: 'invalid-token'})
+        .send({ csrfToken: 'invalid-token' })
         .end((err, res) => {
           if (err) {
             done(err)
           }
           res.should.have.status(401)
-          res.body.should.have.property(
-            'csrfError',
-            'Invalid CSRF token'
-          )
+          res.body.should.have.property('csrfError', 'Invalid CSRF token')
           done()
         })
     })
 
     it('should return 400 if user data not provided', (done) => {
-      const csrfToken = jwt.sign(
-        { user_id: 'johndoe' },
-        CSRF_TOKEN_SECRET,
-        {
-          expiresIn: '10s'
-        }
-      )
+      const csrfToken = jwt.sign({ user_id: 'johndoe' }, CSRF_TOKEN_SECRET, {
+        expiresIn: '10s'
+      })
       chai
         .request(app)
         .delete('/auth/delete-user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
-        .send({csrfToken})
+        .send({ csrfToken })
         .end((err, res) => {
           if (err) {
             done(err)
@@ -978,19 +948,15 @@ describe('Authentication routes', function () {
     })
 
     it('should return 401 if user does not exist', (done) => {
-      const csrfToken = jwt.sign(
-        { user_id: 'johndoe' },
-        CSRF_TOKEN_SECRET,
-        {
-          expiresIn: '10s'
-        }
-      )
+      const csrfToken = jwt.sign({ user_id: 'johndoe' }, CSRF_TOKEN_SECRET, {
+        expiresIn: '10s'
+      })
 
       chai
         .request(app)
         .delete('/auth/delete-user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
-        .send({...validRegistrationPayload, csrfToken})
+        .send({ ...validRegistrationPayload, csrfToken })
         .end((err, res) => {
           if (err) {
             done(err)
