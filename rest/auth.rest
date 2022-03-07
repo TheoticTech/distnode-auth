@@ -19,8 +19,8 @@ content-type: application/json
     "password": "P@ssw0rd"
 }
 
-### Refresh - update accessToken using refresh token
-GET http://localhost:3000/auth/refresh
+### Refresh - update CSRF & access tokens using refresh token
+GET http://localhost:3000/auth/refresh-tokens
 
 ### Logout - invalidate cookies and delete current refresh token
 POST http://localhost:3000/auth/logout

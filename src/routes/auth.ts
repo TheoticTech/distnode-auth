@@ -216,7 +216,7 @@ authRoutes.post(
 )
 
 authRoutes.get(
-  '/refresh-access-token',
+  '/refresh-tokens',
   async (
     req: express.Request,
     res: express.Response
@@ -241,48 +241,6 @@ authRoutes.get(
             { expiresIn: JWT_ACCESS_TOKEN_TTL }
           )
 
-          res.cookie('accessToken', accessToken, AUTH_COOKIE_OPTIONS)
-
-          return res
-            .status(200)
-            .json({ refreshSuccess: 'Access token refreshed successfully' })
-        }
-      } else {
-        return res.status(401).json({ refreshError: 'Refresh token required' })
-      }
-
-      return res.status(401).json({ refreshError: 'Invalid refresh token' })
-    } catch (err) {
-      if (err instanceof jwt.JsonWebTokenError) {
-        return res.status(401).json({ refreshError: 'Invalid refresh token' })
-      } else {
-        console.error(err)
-        return res.status(500).json({ refreshError: 'An error occurred' })
-      }
-    }
-  }
-)
-
-authRoutes.get(
-  '/refresh-csrf-token',
-  async (
-    req: express.Request,
-    res: express.Response
-  ): Promise<express.Response> => {
-    try {
-      const refreshToken = req.cookies?.refreshToken
-
-      if (refreshToken) {
-        const existingRefreshToken = await refreshTokenModel.findOne({
-          token: refreshToken
-        })
-
-        const isValidRefreshToken = jwt.verify(
-          refreshToken,
-          JWT_REFRESH_TOKEN_SECRET
-        )
-
-        if (existingRefreshToken && isValidRefreshToken) {
           const csrfToken = jwt.sign(
             { user_id: existingRefreshToken.user_id },
             CSRF_TOKEN_SECRET,
@@ -291,11 +249,12 @@ authRoutes.get(
             }
           )
 
+          res.cookie('accessToken', accessToken, AUTH_COOKIE_OPTIONS)
           res.cookie('csrfToken', csrfToken, CSRF_COOKIE_OPTIONS)
 
           return res
             .status(200)
-            .json({ refreshSuccess: 'CSRF token refreshed successfully' })
+            .json({ refreshSuccess: 'Tokens refreshed successfully' })
         }
       } else {
         return res.status(401).json({ refreshError: 'Refresh token required' })

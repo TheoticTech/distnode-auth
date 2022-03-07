@@ -418,7 +418,7 @@ describe('Authentication routes', function () {
     })
   })
 
-  describe('POST /auth/refresh-access-token', () => {
+  describe('POST /auth/refresh-tokens', () => {
     beforeEach(async function () {
       await userModel.deleteMany()
     })
@@ -435,101 +435,13 @@ describe('Authentication routes', function () {
             loginRes.should.have.cookie('refreshToken')
             loginRes.should.have.cookie('csrfToken')
 
-            return agent
-              .get('/auth/refresh-access-token')
-              .then((refreshRes) => {
-                refreshRes.should.have.status(200)
-                refreshRes.should.have.cookie('accessToken')
-                refreshRes.body.should.have.property(
-                  'refreshSuccess',
-                  'Access token refreshed successfully'
-                )
-                done()
-              })
-          })
-          .catch((err) => {
-            done(err)
-          })
-          .finally(() => {
-            agent.close()
-          })
-      })
-    })
-
-    it('should return 401 if no refresh token provided', (done) => {
-      const agent = chai.request.agent(app)
-
-      agent
-        .get('/auth/refresh-access-token')
-        .then((res) => {
-          res.should.have.status(401)
-          res.should.have.not.have.cookie('accessToken')
-          res.should.have.not.have.cookie('csrfToken')
-          res.body.should.have.property(
-            'refreshError',
-            'Refresh token required'
-          )
-          done()
-        })
-        .catch((err) => {
-          done(err)
-        })
-        .finally(() => {
-          agent.close()
-        })
-    })
-
-    it('should return 401 if invalid refresh token provided', (done) => {
-      userModel.create(validRegistrationPayload).then(() => {
-        const agent = chai.request.agent(app)
-
-        agent
-          .get('/auth/refresh-access-token')
-          .set('Cookie', 'refreshToken=invalid-token')
-          .then((refreshRes) => {
-            refreshRes.should.have.status(401)
-            refreshRes.should.not.have.cookie('accessToken')
-            refreshRes.should.not.have.cookie('refreshToken')
-            refreshRes.should.not.have.cookie('csrfToken')
-            refreshRes.body.should.have.property(
-              'refreshError',
-              'Invalid refresh token'
-            )
-            done()
-          })
-          .catch((err) => {
-            done(err)
-          })
-          .finally(() => {
-            agent.close()
-          })
-      })
-    })
-  })
-
-  describe('POST /auth/refresh-csrf-token', () => {
-    beforeEach(async function () {
-      await userModel.deleteMany()
-    })
-
-    it('should return 200 and set token cookies for valid refresh', (done) => {
-      userModel.create(validRegistrationPayload).then(() => {
-        const agent = chai.request.agent(app)
-
-        agent
-          .post('/auth/login')
-          .send(validRegistrationPayload)
-          .then((loginRes) => {
-            loginRes.should.have.cookie('accessToken')
-            loginRes.should.have.cookie('refreshToken')
-            loginRes.should.have.cookie('csrfToken')
-
-            return agent.get('/auth/refresh-csrf-token').then((refreshRes) => {
+            return agent.get('/auth/refresh-tokens').then((refreshRes) => {
               refreshRes.should.have.status(200)
+              refreshRes.should.have.cookie('accessToken')
               refreshRes.should.have.cookie('csrfToken')
               refreshRes.body.should.have.property(
                 'refreshSuccess',
-                'CSRF token refreshed successfully'
+                'Tokens refreshed successfully'
               )
               done()
             })
@@ -547,7 +459,7 @@ describe('Authentication routes', function () {
       const agent = chai.request.agent(app)
 
       agent
-        .get('/auth/refresh-csrf-token')
+        .get('/auth/refresh-tokens')
         .then((res) => {
           res.should.have.status(401)
           res.should.have.not.have.cookie('accessToken')
@@ -571,7 +483,7 @@ describe('Authentication routes', function () {
         const agent = chai.request.agent(app)
 
         agent
-          .get('/auth/refresh-csrf-token')
+          .get('/auth/refresh-tokens')
           .set('Cookie', 'refreshToken=invalid-token')
           .then((refreshRes) => {
             refreshRes.should.have.status(401)
