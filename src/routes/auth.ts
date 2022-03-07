@@ -3,6 +3,7 @@ import express, { CookieOptions } from 'express'
 import jwt from 'jsonwebtoken'
 
 // Local
+import { csrfMiddleware } from '../middleware/csrf'
 import queryNeo4j from '../utils/queryNeo4j'
 import { refreshTokenModel } from '../models/refreshToken'
 import { userModel } from '../models/user'
@@ -375,34 +376,13 @@ authRoutes.delete(
 
 authRoutes.delete(
   '/delete-user',
+  csrfMiddleware,
   async (
     req: express.Request,
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      const csrfTokenCookie = req.cookies?.csrfToken
-      const { email, password, csrfToken: csrfTokenBody } = req.body
-
-      if (!csrfTokenCookie || !csrfTokenBody) {
-        return res
-          .status(401)
-          .json({ csrfError: 'CSRF cookie and body token required' })
-      }
-
-      if (csrfTokenCookie !== csrfTokenBody) {
-        return res.status(401).json({ csrfError: 'CSRF token mismatch' })
-      }
-
-      try {
-        jwt.verify(csrfTokenCookie, CSRF_TOKEN_SECRET)
-      } catch (err) {
-        if (err instanceof jwt.TokenExpiredError) {
-          // Don't change the error message, it is used by the frontend
-          return res.status(401).json({ csrfError: 'Expired CSRF token' })
-        } else {
-          return res.status(401).json({ csrfError: 'Invalid CSRF token' })
-        }
-      }
+      const { email, password } = req.body
 
       if (!(email && password)) {
         return res
@@ -424,6 +404,7 @@ authRoutes.delete(
 
         res.cookie('accessToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
         res.cookie('refreshToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
+        res.cookie('csrfToken', {}, { ...CSRF_COOKIE_OPTIONS, maxAge: 0 })
 
         return res
           .status(200)
