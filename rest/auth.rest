@@ -42,5 +42,6 @@ Content-Type: application/json
 
 {
     "email": "jd@distnode.com",
-    "password": "P@ssw0rd"
+    "password": "P@ssw0rd",
+    "csrfToken": "{{csrfToken}}"
 }

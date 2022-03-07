@@ -108,13 +108,14 @@ authRoutes.post(
 
       await queryNeo4j(
         req.app.locals.driver,
-        'CREATE (p:Person {' +
+        'CREATE (u:User {' +
+          'userID: $userID, ' +
           'firstName: $firstName, ' +
           'lastName: $lastName, ' +
           'username: $username, ' +
           'email: $email' +
-          '}) RETURN p',
-        { firstName, lastName, username, email }
+          '}) RETURN u',
+        { userID: user._id.toString(), firstName, lastName, username, email }
       )
 
       const accessToken = jwt.sign(
@@ -398,7 +399,7 @@ authRoutes.delete(
 
         await queryNeo4j(
           req.app.locals.driver,
-          'MATCH (p:Person {email: $email}) DELETE p',
+          'MATCH (u:User {email: $email}) DETACH DELETE u',
           { email }
         )
 
