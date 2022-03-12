@@ -1,6 +1,7 @@
 // Third party
 import express, { CookieOptions } from 'express'
 import jwt from 'jsonwebtoken'
+import mongoose from 'mongoose'
 
 // Local
 import { csrfMiddleware } from '../middleware/csrf'
@@ -215,8 +216,38 @@ authRoutes.post(
   }
 )
 
+authRoutes.post(
+  '/logout',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const refreshToken = req.cookies?.refreshToken
+
+      // Send expired tokens to the client
+      res.cookie('accessToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
+      res.cookie('refreshToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
+      res.cookie('csrfToken', {}, { ...CSRF_COOKIE_OPTIONS, maxAge: 0 })
+
+      if (refreshToken) {
+        await refreshTokenModel.deleteOne({ token: refreshToken })
+      }
+
+      // Even if refresh token doesn't exist, client cookies will be expired
+      return res
+        .status(200)
+        .json({ logoutSuccess: 'User logged out successfully' })
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({ logoutError: 'An error occurred' })
+    }
+  }
+)
+
+// Update access and CSRF tokens
 authRoutes.get(
-  '/refresh-tokens',
+  '/refreshed-tokens',
   async (
     req: express.Request,
     res: express.Response
@@ -272,40 +303,158 @@ authRoutes.get(
   }
 )
 
-authRoutes.post(
-  '/logout',
+// Returns MongoDB ID of current refresh token
+authRoutes.get(
+  '/refresh-token/current',
   async (
     req: express.Request,
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      res.cookie('accessToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
-      res.cookie('refreshToken', {}, { ...AUTH_COOKIE_OPTIONS, maxAge: 0 })
-
       const refreshToken = req.cookies?.refreshToken
 
       if (refreshToken) {
-        await refreshTokenModel.deleteOne({ token: refreshToken })
-      }
+        const refreshTokenExists = await refreshTokenModel.exists({
+          token: refreshToken
+        })
 
-      return res
-        .status(200)
-        .json({ logoutSuccess: 'User logged out successfully' })
+        if (refreshTokenExists) {
+          return res.status(200).json({
+            getRefreshIDSuccess: 'Refresh token ID obtained successfully',
+            refreshID: refreshTokenExists._id.toString()
+          })
+        } else {
+          return res.status(404).json({
+            getRefreshIDError: 'Refresh token not found'
+          })
+        }
+      } else {
+        return res.status(401).json({
+          getRefreshIDError: 'Refresh token cookie required'
+        })
+      }
     } catch (err) {
       console.error(err)
-      return res.status(500).json({ logoutError: 'An error occurred' })
+      return res.status(500).json({
+        getRefreshIDError: 'An unknown error occurred, please try again later'
+      })
     }
   }
 )
 
-authRoutes.delete(
-  '/delete-refresh-token',
+// Returns MongoDB IDs of all refresh tokens for active refresh token user_id
+authRoutes.get(
+  '/refresh-token/all',
   async (
     req: express.Request,
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      const { refreshToken } = req.body
+      const refreshToken = req.cookies?.refreshToken
+
+      if (refreshToken) {
+        const refreshTokenExists = await refreshTokenModel.findOne({
+          token: refreshToken
+        })
+
+        if (refreshTokenExists) {
+          const refreshTokens = await refreshTokenModel.find({
+            user_id: refreshTokenExists.user_id
+          })
+
+          const refreshTokenIDs = refreshTokens.map((refreshToken) =>
+            refreshToken._id.toString()
+          )
+
+          return res.status(200).json({
+            getRefreshIDSuccess: 'Refresh token IDs obtained successfully',
+            refreshIDs: refreshTokenIDs
+          })
+        } else {
+          return res.status(404).json({
+            getRefreshIDError: 'Refresh token not found'
+          })
+        }
+      } else {
+        return res.status(401).json({
+          getRefreshIDError: 'Refresh token cookie required'
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({
+        getRefreshIDError: 'An unknown error occurred, please try again later'
+      })
+    }
+  }
+)
+
+// Deletes specified refresh token
+authRoutes.delete(
+  '/refresh-token/id/:refreshID',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const activeRefreshToken = req.cookies?.refreshToken
+      const passedRefreshTokenID = req.params.refreshID
+
+      if (activeRefreshToken) {
+        const activeRefreshTokenExists = await refreshTokenModel.findOne({
+          token: activeRefreshToken
+        })
+
+        const passedRefreshTokenExists = await refreshTokenModel.findOne({
+          _id: passedRefreshTokenID
+        })
+
+        if (activeRefreshTokenExists && passedRefreshTokenExists) {
+          const activeUserID = activeRefreshTokenExists.user_id.toString()
+          const passedUserID = passedRefreshTokenExists.user_id.toString()
+
+          if (activeUserID === passedUserID) {
+            await refreshTokenModel.findByIdAndDelete(passedRefreshTokenID)
+            return res.status(200).json({
+              deleteRefreshSuccess: 'Refresh token deleted successfully'
+            })
+          } else {
+            return res.status(401).json({
+              deleteRefreshError: 'Invalid refresh token'
+            })
+          }
+        } else {
+          return res
+            .status(404)
+            .json({ deleteRefreshError: 'Refresh token not found' })
+        }
+      } else {
+        return res.status(401).json({
+          deleteRefreshError: 'Refresh token cookie required'
+        })
+      }
+    } catch (err) {
+      if (err instanceof mongoose.Error.CastError) {
+        return res.status(400).json({
+          deleteRefreshError: 'Invalid refresh token ID param'
+        })
+      } else {
+        console.error(err)
+        return res.status(500).json({ deleteRefreshError: 'An error occurred' })
+      }
+    }
+  }
+)
+
+// Deletes active refresh token
+authRoutes.delete(
+  '/refresh-token/current',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const refreshToken = req.cookies?.refreshToken
 
       if (refreshToken) {
         const refreshTokenExists = await refreshTokenModel.exists({
@@ -322,20 +471,65 @@ authRoutes.delete(
             .status(404)
             .json({ deleteRefreshError: 'Refresh token not found' })
         }
+      } else {
+        return res.status(401).json({
+          deleteRefreshError: 'Refresh token cookie required'
+        })
       }
-
-      return res
-        .status(400)
-        .json({ deleteRefreshError: 'Refresh token required' })
     } catch (err) {
       console.error(err)
-      return res.status(500).json({ deleteRefreshError: 'An error occurred' })
+      return res.status(500).json({
+        deleteRefreshError: 'An unknown error occurred, please try again later'
+      })
+    }
+  }
+)
+
+// Deletes all refresh tokens for active refresh token user_id
+authRoutes.delete(
+  '/refresh-token/all',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const refreshToken = req.cookies?.refreshToken
+
+      if (refreshToken) {
+        const refreshTokenExists = await refreshTokenModel.findOne({
+          token: refreshToken
+        })
+
+        if (refreshTokenExists) {
+          const userID = refreshTokenExists.user_id
+          await refreshTokenModel.deleteMany({
+            user_id: userID
+          })
+
+          return res.status(200).json({
+            deleteRefreshSuccess: 'Refresh tokens deleted successfully'
+          })
+        } else {
+          return res
+            .status(404)
+            .json({ deleteRefreshError: 'Refresh token not found' })
+        }
+      } else {
+        return res.status(401).json({
+          deleteRefreshError: 'Refresh token cookie required'
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({
+        deleteRefreshError: 'An unknown error occurred, please try again later'
+      })
     }
   }
 )
 
 authRoutes.delete(
-  '/delete-user',
+  '/user',
   csrfMiddleware,
   async (
     req: express.Request,

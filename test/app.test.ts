@@ -25,8 +25,13 @@ const validRegistrationPayload = {
 
 // NOTE: App requires a MongoDB connection
 describe('Authentication routes', function () {
+  before(async function () {
+    await userModel.deleteMany()
+    await refreshTokenModel.deleteMany()
+  })
+
   describe('POST /auth/register', function () {
-    beforeEach(async function () {
+    afterEach(async function () {
       await userModel.deleteMany()
     })
 
@@ -294,7 +299,7 @@ describe('Authentication routes', function () {
   })
 
   describe('POST /auth/login', () => {
-    beforeEach(async function () {
+    afterEach(async function () {
       await userModel.deleteMany()
     })
 
@@ -418,8 +423,8 @@ describe('Authentication routes', function () {
     })
   })
 
-  describe('POST /auth/refresh-tokens', () => {
-    beforeEach(async function () {
+  describe('GET /auth/refreshed-tokens', () => {
+    afterEach(async function () {
       await userModel.deleteMany()
     })
 
@@ -435,7 +440,7 @@ describe('Authentication routes', function () {
             loginRes.should.have.cookie('refreshToken')
             loginRes.should.have.cookie('csrfToken')
 
-            return agent.get('/auth/refresh-tokens').then((refreshRes) => {
+            return agent.get('/auth/refreshed-tokens').then((refreshRes) => {
               refreshRes.should.have.status(200)
               refreshRes.should.have.cookie('accessToken')
               refreshRes.should.have.cookie('csrfToken')
@@ -459,7 +464,7 @@ describe('Authentication routes', function () {
       const agent = chai.request.agent(app)
 
       agent
-        .get('/auth/refresh-tokens')
+        .get('/auth/refreshed-tokens')
         .then((res) => {
           res.should.have.status(401)
           res.should.have.not.have.cookie('accessToken')
@@ -483,7 +488,7 @@ describe('Authentication routes', function () {
         const agent = chai.request.agent(app)
 
         agent
-          .get('/auth/refresh-tokens')
+          .get('/auth/refreshed-tokens')
           .set('Cookie', 'refreshToken=invalid-token')
           .then((refreshRes) => {
             refreshRes.should.have.status(401)
@@ -586,8 +591,155 @@ describe('Authentication routes', function () {
     })
   })
 
-  describe('DELETE /auth/delete-refresh-token', () => {
-    beforeEach(async function () {
+  describe('GET /auth/refresh-token/current', () => {
+    afterEach(async function () {
+      await refreshTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid refresh token provided and found', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .get('/auth/refresh-token/current')
+            .set('Cookie', `refreshToken=${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(200)
+              res.body.should.have.property(
+                'getRefreshIDSuccess',
+                'Refresh token ID obtained successfully'
+              )
+              res.body.should.have.property('refreshID', token._id.toString())
+              done()
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if refresh token not found', (done) => {
+      chai
+        .request(app)
+        .get('/auth/refresh-token/current')
+        .set('Cookie', 'refreshToken=non-existent-token')
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(404)
+          res.body.should.have.property(
+            'getRefreshIDError',
+            'Refresh token not found'
+          )
+          done()
+        })
+    })
+
+    it('should return 401 if refresh token not provided', (done) => {
+      chai
+        .request(app)
+        .get('/auth/refresh-token/current')
+        .send()
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(401)
+          res.body.should.have.property(
+            'getRefreshIDError',
+            'Refresh token cookie required'
+          )
+          done()
+        })
+    })
+  })
+
+  describe('GET /auth/refresh-token/all', () => {
+    afterEach(async function () {
+      await refreshTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid refresh token provided and found', (done) => {
+      const userID = new mongoose.Types.ObjectId()
+      refreshTokenModel
+        .insertMany([
+          { token: 'token1', user_id: userID },
+          { token: 'token2', user_id: userID }
+        ])
+        .then((tokens) => {
+          chai.expect(tokens).not.to.be.null
+          chai
+            .request(app)
+            .get('/auth/refresh-token/all')
+            .set('Cookie', `refreshToken=${tokens[0].token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(200)
+              res.body.should.have.property(
+                'getRefreshIDSuccess',
+                'Refresh token IDs obtained successfully'
+              )
+              chai
+                .expect(res.body.refreshIDs)
+                .to.have.members(tokens.map((token) => token._id.toString()))
+              done()
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if refresh token not found', (done) => {
+      chai
+        .request(app)
+        .get('/auth/refresh-token/all')
+        .set('Cookie', 'refreshToken=non-existent-token')
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(404)
+          res.body.should.have.property(
+            'getRefreshIDError',
+            'Refresh token not found'
+          )
+          done()
+        })
+    })
+
+    it('should return 401 if refresh token not provided', (done) => {
+      chai
+        .request(app)
+        .get('/auth/refresh-token/all')
+        .send()
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(401)
+          res.body.should.have.property(
+            'getRefreshIDError',
+            'Refresh token cookie required'
+          )
+          done()
+        })
+    })
+  })
+
+  describe('DELETE /auth/refresh-token/id/:refreshID', () => {
+    afterEach(async function () {
       await refreshTokenModel.deleteMany()
     })
 
@@ -601,8 +753,257 @@ describe('Authentication routes', function () {
           chai.expect(token).not.to.be.null
           chai
             .request(app)
-            .delete('/auth/delete-refresh-token')
-            .send({ refreshToken: token.token })
+            .delete(`/auth/refresh-token/id/${token._id.toString()}`)
+            .set('Cookie', `refreshToken=${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(200)
+              res.body.should.have.property(
+                'deleteRefreshSuccess',
+                'Refresh token deleted successfully'
+              )
+
+              refreshTokenModel
+                .exists({
+                  token: token.token
+                })
+                .then((exists) => {
+                  chai.expect(exists).to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 400 if passed invalid refresh token', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .delete('/auth/refresh-token/id/invalid-token')
+            .set('Cookie', `refreshToken=${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(400)
+              res.body.should.have.property(
+                'deleteRefreshError',
+                'Invalid refresh token ID param'
+              )
+
+              refreshTokenModel
+                .exists({
+                  token: token.token
+                })
+                .then((exists) => {
+                  chai.expect(exists).not.to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if passed refresh token not found', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .delete('/auth/refresh-token/id/622ced040b71e931094f9bcc')
+            .set('Cookie', `refreshToken=${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(404)
+              res.body.should.have.property(
+                'deleteRefreshError',
+                'Refresh token not found'
+              )
+
+              refreshTokenModel
+                .exists({
+                  token: token.token
+                })
+                .then((exists) => {
+                  chai.expect(exists).not.to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if active refresh token not found', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .delete(`/auth/refresh-token/id/${token._id.toString()}`)
+            .set('Cookie', `refreshToken=non-existent-token`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(404)
+              res.body.should.have.property(
+                'deleteRefreshError',
+                'Refresh token not found'
+              )
+
+              refreshTokenModel
+                .exists({
+                  token: token.token
+                })
+                .then((exists) => {
+                  chai.expect(exists).not.to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 401 if active refresh token not provided', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .delete(`/auth/refresh-token/id/${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(401)
+              res.body.should.have.property(
+                'deleteRefreshError',
+                'Refresh token cookie required'
+              )
+
+              refreshTokenModel
+                .exists({
+                  token: token.token
+                })
+                .then((exists) => {
+                  chai.expect(exists).not.to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 401 if active and passed refresh token users do not match', (done) => {
+      refreshTokenModel
+        .insertMany([
+          { token: 'token1', user_id: new mongoose.Types.ObjectId() },
+          { token: 'token2', user_id: new mongoose.Types.ObjectId() }
+        ])
+        .then((tokens) => {
+          chai.expect(tokens).not.to.be.null
+          chai
+            .request(app)
+            .delete(`/auth/refresh-token/id/${tokens[0]._id.toString()}`)
+            .set('Cookie', `refreshToken=${tokens[1].token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(401)
+              res.body.should.have.property(
+                'deleteRefreshError',
+                'Invalid refresh token'
+              )
+
+              refreshTokenModel
+                .find({
+                  _id: { $in: tokens.map((token) => token._id) }
+                })
+                .then((find) => {
+                  const foundIDs = find.map((token) => token._id.toString())
+                  const expectedIDs = tokens.map((token) =>
+                    token._id.toString()
+                  )
+                  chai.expect(foundIDs).to.have.members(expectedIDs)
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+  })
+
+  describe('DELETE /auth/refresh-token/current', () => {
+    afterEach(async function () {
+      await refreshTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid refresh token provided and deleted', (done) => {
+      refreshTokenModel
+        .create({
+          token: 'token',
+          user_id: new mongoose.Types.ObjectId()
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .delete('/auth/refresh-token/current')
+            .set('Cookie', `refreshToken=${token.token}`)
             .end((err, res) => {
               if (err) {
                 done(err)
@@ -634,8 +1035,8 @@ describe('Authentication routes', function () {
     it('should return 404 if refresh token not found', (done) => {
       chai
         .request(app)
-        .delete('/auth/delete-refresh-token')
-        .send({ refreshToken: 'non-existent-token' })
+        .delete('/auth/refresh-token/current')
+        .set('Cookie', 'refreshToken=non-existent-token')
         .end((err, res) => {
           if (err) {
             done(err)
@@ -649,27 +1050,110 @@ describe('Authentication routes', function () {
         })
     })
 
-    it('should return 400 if refresh token not provided', (done) => {
+    it('should return 401 if refresh token not provided', (done) => {
       chai
         .request(app)
-        .delete('/auth/delete-refresh-token')
-        .send({})
+        .delete('/auth/refresh-token/current')
+        .send()
         .end((err, res) => {
           if (err) {
             done(err)
           }
-          res.should.have.status(400)
+          res.should.have.status(401)
           res.body.should.have.property(
             'deleteRefreshError',
-            'Refresh token required'
+            'Refresh token cookie required'
           )
           done()
         })
     })
   })
 
-  describe('DELETE /auth/delete-user', () => {
-    beforeEach(async function () {
+  describe('DELETE /auth/refresh-token/all', () => {
+    afterEach(async function () {
+      await refreshTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid refresh token provided and deleted', (done) => {
+      const userID = new mongoose.Types.ObjectId()
+      refreshTokenModel
+        .insertMany([
+          { token: 'token1', user_id: userID },
+          { token: 'token2', user_id: userID }
+        ])
+        .then((tokens) => {
+          chai.expect(tokens).not.to.be.null
+          chai
+            .request(app)
+            .delete('/auth/refresh-token/all')
+            .set('Cookie', `refreshToken=${tokens[0].token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(200)
+              res.body.should.have.property(
+                'deleteRefreshSuccess',
+                'Refresh tokens deleted successfully'
+              )
+
+              refreshTokenModel
+                .exists({
+                  user_id: userID
+                })
+                .then((exists) => {
+                  chai.expect(exists).to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if refresh token not found', (done) => {
+      chai
+        .request(app)
+        .delete('/auth/refresh-token/all')
+        .set('Cookie', 'refreshToken=non-existent-token')
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(404)
+          res.body.should.have.property(
+            'deleteRefreshError',
+            'Refresh token not found'
+          )
+          done()
+        })
+    })
+
+    it('should return 401 if refresh token not provided', (done) => {
+      chai
+        .request(app)
+        .delete('/auth/refresh-token/all')
+        .send()
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(401)
+          res.body.should.have.property(
+            'deleteRefreshError',
+            'Refresh token cookie required'
+          )
+          done()
+        })
+    })
+  })
+
+  describe('DELETE /auth/user', () => {
+    afterEach(async function () {
       await userModel.deleteMany()
       await refreshTokenModel.deleteMany()
     })
@@ -691,7 +1175,7 @@ describe('Authentication routes', function () {
               .split('=')[1]
 
             return agent
-              .delete('/auth/delete-user')
+              .delete('/auth/user')
               .send({ ...validRegistrationPayload, csrfToken })
               .then((deleteRes) => {
                 deleteRes.should.have.status(200)
@@ -743,7 +1227,7 @@ describe('Authentication routes', function () {
 
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .send({ csrfToken })
         .end((err, res) => {
           if (err) {
@@ -765,7 +1249,7 @@ describe('Authentication routes', function () {
 
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
         .send({})
         .end((err, res) => {
@@ -788,7 +1272,7 @@ describe('Authentication routes', function () {
 
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
         .send({ csrfToken: 'non-existent-token' })
         .end((err, res) => {
@@ -808,7 +1292,7 @@ describe('Authentication routes', function () {
 
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
         .send({ csrfToken })
         .end((err, res) => {
@@ -824,7 +1308,7 @@ describe('Authentication routes', function () {
     it('should return 401 if CSRF token is invalid', (done) => {
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .set('Cookie', ['csrfToken=invalid-token'])
         .send({ csrfToken: 'invalid-token' })
         .end((err, res) => {
@@ -843,7 +1327,7 @@ describe('Authentication routes', function () {
       })
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
         .send({ csrfToken })
         .end((err, res) => {
@@ -866,7 +1350,7 @@ describe('Authentication routes', function () {
 
       chai
         .request(app)
-        .delete('/auth/delete-user')
+        .delete('/auth/user')
         .set('Cookie', [`csrfToken=${csrfToken}`])
         .send({ ...validRegistrationPayload, csrfToken })
         .end((err, res) => {

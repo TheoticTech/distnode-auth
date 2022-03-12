@@ -19,8 +19,14 @@ content-type: application/json
     "password": "P@ssw0rd"
 }
 
+### Logout - delete refresh token found in cookie
+POST http://localhost:3000/auth/logout
+content-type: application/json
+
+{}
+
 ### Refresh - update CSRF & access tokens using refresh token
-GET http://localhost:3000/auth/refresh-tokens
+GET http://localhost:3000/auth/refreshed-tokens
 
 ### Logout - invalidate cookies and delete current refresh token
 POST http://localhost:3000/auth/logout
@@ -28,16 +34,32 @@ content-type: application/json
 
 {}
 
-### Delete refresh token - overwrite cookies and delete refresh token
-DELETE http://localhost:3000/auth/delete-refresh-token
+### Get active refresh token ID for current user
+GET http://localhost:3000/auth/refresh-token/current
 Content-Type: application/json
 
-{
-    "refreshToken": "{{refreshToken}}"
-}
+{}
+
+### Get all refresh token IDs for current user
+GET http://localhost:3000/auth/refresh-token/all
+Content-Type: application/json
+
+{}
+
+### Delete refresh token - overwrite cookies and delete refresh token
+DELETE http://localhost:3000/auth/refresh-token/current
+Content-Type: application/json
+
+{}
+
+### Delete all refresh tokens for active user
+DELETE http://localhost:3000/auth/refresh-token/all
+Content-Type: application/json
+
+{}
 
 ### Delete user - remove user, overwrite cookies, and delete refresh tokens
-DELETE http://localhost:3000/auth/delete-user
+DELETE http://localhost:3000/auth/user
 Content-Type: application/json
 
 {
