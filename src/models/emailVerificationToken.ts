@@ -11,7 +11,7 @@ const emailVerificationToken = () => {
   return crypto.randomBytes(parseInt(VERIFICATION_TOKEN_LENGTH)).toString('hex')
 }
 
-const verificationTokenSchema = new mongoose.Schema({
+const emailVerificationTokenSchema = new mongoose.Schema({
   user_id: {
     type: mongoose.Schema.Types.ObjectId,
     required: true
@@ -28,9 +28,9 @@ const verificationTokenSchema = new mongoose.Schema({
   }
 })
 
-const verificationTokenModel = mongoose.model(
-  'verificationToken',
-  verificationTokenSchema
+const emailVerificationTokenModel = mongoose.model(
+  'emailVerificationToken',
+  emailVerificationTokenSchema
 )
 
-export { verificationTokenModel }
+export { emailVerificationTokenModel }

@@ -5,11 +5,12 @@ import mongoose from 'mongoose'
 
 // Local
 import { csrfMiddleware } from '../middleware/csrf'
+import { emailVerificationTokenModel } from '../models/emailVerificationToken'
 import queryNeo4j from '../utils/queryNeo4j'
 import { refreshTokenModel } from '../models/refreshToken'
+import sendPasswordResetEmail from '../utils/sendPasswordResetEmail'
 import sendVerificationEmail from '../utils/sendVerificationEmail'
 import { userModel } from '../models/user'
-import { verificationTokenModel } from '../models/verificationToken'
 
 // Configurations
 import {
@@ -22,6 +23,7 @@ import {
   JWT_REFRESH_TOKEN_SECRET,
   JWT_REFRESH_TOKEN_TTL
 } from '../config'
+import { passwordResetTokenModel } from '../models/passwordResetToken'
 
 // Constants
 const AUTH_COOKIE_OPTIONS: CookieOptions = {
@@ -34,6 +36,7 @@ const CSRF_COOKIE_OPTIONS: CookieOptions = {
   ...AUTH_COOKIE_OPTIONS,
   httpOnly: false
 }
+const PASSWORD_REGEX = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*]).{8,64}$/
 
 // Ensure necessary configurations are set
 if (
@@ -78,11 +81,7 @@ authRoutes.post(
           .json({ registrationError: 'Username is already in use' })
       }
 
-      if (
-        /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*]).{8,64}$/.test(
-          password
-        ) === false
-      ) {
+      if (!PASSWORD_REGEX.test(password)) {
         return res.status(400).json({
           registrationError:
             'Password must contain at least one number, ' +
@@ -93,7 +92,7 @@ authRoutes.post(
         })
       }
 
-      if (/^([a-zA-Z0-9]){1,24}$/.test(username) === false) {
+      if (!/^([a-zA-Z0-9]){1,24}$/.test(username)) {
         return res.status(400).json({
           registrationError:
             'Username must only contain numbers, letters, ' +
@@ -139,7 +138,7 @@ authRoutes.post(
         expiresIn: CSRF_TOKEN_TTL
       })
 
-      const verificationToken = await verificationTokenModel.create({
+      const verificationToken = await emailVerificationTokenModel.create({
         user_id: user._id
       })
 
@@ -190,9 +189,15 @@ authRoutes.get(
                 verifyEmailError: 'Email is already verified'
               })
             } else {
-              const verificationToken = await verificationTokenModel.create({
+              // Delete any existing verification tokens for user
+              await emailVerificationTokenModel.deleteMany({
                 user_id: user._id
               })
+
+              const verificationToken =
+                await emailVerificationTokenModel.create({
+                  user_id: user._id
+                })
 
               sendVerificationEmail(user.email, verificationToken.token)
 
@@ -237,7 +242,7 @@ authRoutes.post(
           .status(400)
           .json({ verifyEmailError: 'Verification token required' })
       } else {
-        const verificationToken = await verificationTokenModel.findOne({
+        const verificationToken = await emailVerificationTokenModel.findOne({
           token
         })
 
@@ -270,6 +275,120 @@ authRoutes.post(
       console.error(err)
       return res.status(500).json({
         verifyEmailError: 'An unknown error occurred, please try again later'
+      })
+    }
+  }
+)
+
+// Used to get new password reset token (if not already exists) and email
+authRoutes.get(
+  '/password-reset',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const { email } = req.body
+
+      if (email) {
+        const user = await userModel.findOne({ email: email.toLowerCase() })
+
+        if (user) {
+          if (!user.emailVerified) {
+            return res.status(400).json({
+              passwordResetError:
+                'Email must be verified before resetting password'
+            })
+          } else {
+            // Delete any existing password reset tokens for user
+            await passwordResetTokenModel.deleteMany({
+              user_id: user._id
+            })
+
+            const passwordResetToken = await passwordResetTokenModel.create({
+              user_id: user._id
+            })
+
+            sendPasswordResetEmail(user.email, passwordResetToken.token)
+
+            return res.status(200).json({
+              passwordResetSuccess: 'Password reset email sent successfully'
+            })
+          }
+        } else {
+          return res.status(404).json({ passwordResetError: 'User not found' })
+        }
+      } else {
+        return res.status(400).json({
+          passwordResetError: 'Email is required for password reset'
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({
+        passwordResetError: 'An unknown error occurred, please try again later'
+      })
+    }
+  }
+)
+
+// Reset password if provided a valid token
+authRoutes.post(
+  '/password-reset',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const { token } = req.query
+      const { password } = req.body
+
+      if (!token) {
+        return res
+          .status(400)
+          .json({ passwordResetError: 'Password reset token required' })
+      } else if (!password) {
+        return res
+          .status(400)
+          .json({ passwordResetError: 'New password required' })
+      } else if (!PASSWORD_REGEX.test(password)) {
+        return res.status(400).json({
+          passwordResetError: 'New password does not meet requirements'
+        })
+      } else {
+        const passwordResetToken = await passwordResetTokenModel.findOne({
+          token
+        })
+
+        if (!passwordResetToken) {
+          return res
+            .status(400)
+            .json({ passwordResetError: 'Invalid password reset token' })
+        } else {
+          const user = await userModel.findById(passwordResetToken.user_id)
+
+          if (user) {
+            user.password = password
+            await user.save()
+
+            await passwordResetTokenModel.deleteMany({
+              user_id: user._id
+            })
+
+            return res
+              .status(200)
+              .json({ passwordResetSuccess: 'Password reset successfully' })
+          } else {
+            return res
+              .status(404)
+              .json({ passwordResetError: 'User not found' })
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({
+        passwordResetError: 'An unknown error occurred, please try again later'
       })
     }
   }

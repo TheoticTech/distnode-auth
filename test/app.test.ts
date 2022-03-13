@@ -10,7 +10,8 @@ import sinon from 'sinon'
 import { app } from '../src/app'
 import { userModel } from '../src/models/user'
 import { refreshTokenModel } from '../src/models/refreshToken'
-import { verificationTokenModel } from '../src/models/verificationToken'
+import { emailVerificationTokenModel } from '../src/models/emailVerificationToken'
+import { passwordResetTokenModel } from '../src/models/passwordResetToken'
 
 // Configurations
 import { CSRF_TOKEN_SECRET } from '../src/config'
@@ -43,7 +44,7 @@ describe('Authentication routes', function () {
 
     afterEach(async function () {
       await userModel.deleteMany()
-      await verificationTokenModel.deleteMany()
+      await emailVerificationTokenModel.deleteMany()
       sendStub.restore()
     })
 
@@ -69,7 +70,7 @@ describe('Authentication routes', function () {
           )
           sinon.assert.calledWithMatch(sendStub, {
             to: validRegistrationPayload.email,
-            from: 'registration@distnode.com'
+            from: 'accounts@distnode.com'
           })
           done()
         })
@@ -324,7 +325,7 @@ describe('Authentication routes', function () {
     afterEach(async function () {
       await userModel.deleteMany()
       await refreshTokenModel.deleteMany()
-      await verificationTokenModel.deleteMany()
+      await emailVerificationTokenModel.deleteMany()
       sendStub.restore()
     })
 
@@ -353,10 +354,10 @@ describe('Authentication routes', function () {
 
                 sinon.assert.calledWithMatch(sendStub, {
                   to: validRegistrationPayload.email,
-                  from: 'registration@distnode.com'
+                  from: 'accounts@distnode.com'
                 })
 
-                verificationTokenModel
+                emailVerificationTokenModel
                   .exists({
                     user_id: token.user_id
                   })
@@ -405,7 +406,7 @@ describe('Authentication routes', function () {
 
                   sinon.assert.notCalled(sendStub)
 
-                  verificationTokenModel
+                  emailVerificationTokenModel
                     .exists({
                       user_id: token.user_id
                     })
@@ -449,7 +450,7 @@ describe('Authentication routes', function () {
 
               sinon.assert.notCalled(sendStub)
 
-              verificationTokenModel
+              emailVerificationTokenModel
                 .exists({
                   user_id: userID
                 })
@@ -502,17 +503,80 @@ describe('Authentication routes', function () {
           done()
         })
     })
+
+    it('should delete previous verification token if multiple are requested', (done) => {
+      userModel.create(validRegistrationPayload).then((user) => {
+        refreshTokenModel
+          .create({
+            token: 'token1',
+            user_id: user._id
+          })
+          .then((token) => {
+            chai.expect(token).not.to.be.null
+            chai
+              .request(app)
+              .get('/auth/verify-email')
+              .set('Cookie', `refreshToken=${token.token}`)
+              .end((err, res1) => {
+                if (err) {
+                  done(err)
+                }
+                chai
+                  .request(app)
+                  .get('/auth/verify-email')
+                  .set('Cookie', `refreshToken=${token.token}`)
+                  .end((err, res2) => {
+                    if (err) {
+                      done(err)
+                    }
+                    res1.should.have.status(200)
+                    res2.should.have.status(200)
+                    res1.body.should.have.property(
+                      'verifyEmailSuccess',
+                      'New verification email sent successfully'
+                    )
+                    res2.body.should.have.property(
+                      'verifyEmailSuccess',
+                      'New verification email sent successfully'
+                    )
+
+                    sinon.assert.callCount(sendStub, 2)
+
+                    sinon.assert.calledWithMatch(sendStub, {
+                      to: validRegistrationPayload.email,
+                      from: 'accounts@distnode.com'
+                    })
+
+                    emailVerificationTokenModel
+                      .find({
+                        user_id: token.user_id
+                      })
+                      .then((exists) => {
+                        chai.expect(exists.length).to.equal(1)
+                        done()
+                      })
+                      .catch((err) => {
+                        done(err)
+                      })
+                  })
+              })
+          })
+          .catch((err) => {
+            done(err)
+          })
+      })
+    })
   })
 
   describe('POST /auth/verify-email', () => {
     afterEach(async function () {
       await userModel.deleteMany()
-      await verificationTokenModel.deleteMany()
+      await emailVerificationTokenModel.deleteMany()
     })
 
     it('should return 200 if valid verification token provided and user updated', (done) => {
       userModel.create(validRegistrationPayload).then((user) => {
-        verificationTokenModel
+        emailVerificationTokenModel
           .create({
             user_id: user._id
           })
@@ -552,7 +616,7 @@ describe('Authentication routes', function () {
 
     it('should return 404 if valid verification token provided but user not found', (done) => {
       const userID = new mongoose.Types.ObjectId()
-      verificationTokenModel
+      emailVerificationTokenModel
         .create({
           user_id: userID
         })
@@ -596,24 +660,6 @@ describe('Authentication routes', function () {
         })
     })
 
-    it('should return 400 if malformed verification token provided', (done) => {
-      const verificationTokenID = new mongoose.Types.ObjectId()
-      chai
-        .request(app)
-        .post(`/auth/verify-email?token=${verificationTokenID}`)
-        .end((err, res) => {
-          if (err) {
-            done(err)
-          }
-          res.should.have.status(400)
-          res.body.should.have.property(
-            'verifyEmailError',
-            'Invalid verification token'
-          )
-          done()
-        })
-    })
-
     it('should return 400 if no token provided', (done) => {
       chai
         .request(app)
@@ -638,7 +684,7 @@ describe('Authentication routes', function () {
           emailVerified: true
         })
         .then((user) => {
-          verificationTokenModel
+          emailVerificationTokenModel
             .create({
               user_id: user._id
             })
@@ -662,6 +708,366 @@ describe('Authentication routes', function () {
             .catch((err) => {
               done(err)
             })
+        })
+    })
+  })
+
+  describe('GET /auth/password-reset', () => {
+    let sendStub: sinon.SinonStub
+
+    beforeEach(() => {
+      sendStub = sinon.stub(sgMail, 'send')
+    })
+
+    afterEach(async function () {
+      await userModel.deleteMany()
+      await passwordResetTokenModel.deleteMany()
+      sendStub.restore()
+    })
+
+    it('should return 200 if valid email address provided and email sent', (done) => {
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then((user) => {
+          chai.expect(user).not.to.be.null
+          chai
+            .request(app)
+            .get('/auth/password-reset')
+            .send({ email: user.email })
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(200)
+              res.body.should.have.property(
+                'passwordResetSuccess',
+                'Password reset email sent successfully'
+              )
+
+              sinon.assert.calledWithMatch(sendStub, {
+                to: validRegistrationPayload.email,
+                from: 'accounts@distnode.com'
+              })
+
+              passwordResetTokenModel
+                .exists({
+                  user_id: user._id.toString()
+                })
+                .then((exists) => {
+                  chai.expect(exists).not.to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 400 if email has not been verified', (done) => {
+      userModel
+        .create(validRegistrationPayload)
+        .then((user) => {
+          chai.expect(user).not.to.be.null
+          chai
+            .request(app)
+            .get('/auth/password-reset')
+            .send({ email: user.email })
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(400)
+              res.body.should.have.property(
+                'passwordResetError',
+                'Email must be verified before resetting password'
+              )
+
+              sinon.assert.notCalled(sendStub)
+
+              passwordResetTokenModel
+                .exists({
+                  user_id: user._id.toString()
+                })
+                .then((exists) => {
+                  chai.expect(exists).to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if user with provided email not found', (done) => {
+      chai
+        .request(app)
+        .get('/auth/password-reset')
+        .send({ email: 'non-existent-email@distnode.com' })
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(404)
+          res.body.should.have.property('passwordResetError', 'User not found')
+
+          sinon.assert.notCalled(sendStub)
+
+          passwordResetTokenModel
+            .find({})
+            .then((exists) => {
+              chai.expect(exists.length).to.equal(0)
+              done()
+            })
+            .catch((err) => {
+              done(err)
+            })
+        })
+    })
+
+    it('should return 400 if email not provided', (done) => {
+      chai
+        .request(app)
+        .get('/auth/password-reset')
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'passwordResetError',
+            'Email is required for password reset'
+          )
+          done()
+        })
+    })
+
+    it('should delete previous reset token if multiple are requested', (done) => {
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then((user) => {
+          chai.expect(user).not.to.be.null
+          chai
+            .request(app)
+            .get('/auth/password-reset')
+            .send({ email: user.email })
+            .end((err, res1) => {
+              if (err) {
+                done(err)
+              }
+              chai
+                .request(app)
+                .get('/auth/password-reset')
+                .send({ email: user.email })
+                .end((err, res2) => {
+                  if (err) {
+                    done(err)
+                  }
+                  res1.should.have.status(200)
+                  res2.should.have.status(200)
+                  res1.body.should.have.property(
+                    'passwordResetSuccess',
+                    'Password reset email sent successfully'
+                  )
+                  res2.body.should.have.property(
+                    'passwordResetSuccess',
+                    'Password reset email sent successfully'
+                  )
+
+                  sinon.assert.callCount(sendStub, 2)
+
+                  sinon.assert.calledWithMatch(sendStub, {
+                    to: validRegistrationPayload.email,
+                    from: 'accounts@distnode.com'
+                  })
+
+                  passwordResetTokenModel
+                    .find({
+                      user_id: user._id.toString()
+                    })
+                    .then((exists) => {
+                      chai.expect(exists.length).to.equal(1)
+                      done()
+                    })
+                    .catch((err) => {
+                      done(err)
+                    })
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+  })
+
+  describe('POST /auth/password-reset', () => {
+    afterEach(async function () {
+      await userModel.deleteMany()
+      await passwordResetTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid reset token and new password provided, and user updated', (done) => {
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then((user) => {
+          passwordResetTokenModel
+            .create({
+              user_id: user._id
+            })
+            .then((token) => {
+              chai.expect(token).not.to.be.null
+              chai
+                .request(app)
+                .post(`/auth/password-reset?token=${token.token}`)
+                .send({ password: `New${validRegistrationPayload.password}` })
+                .end((err, res) => {
+                  if (err) {
+                    done(err)
+                  }
+                  res.should.have.status(200)
+                  res.body.should.have.property(
+                    'passwordResetSuccess',
+                    'Password reset successfully'
+                  )
+
+                  userModel
+                    .findOne({
+                      user_id: token.user_id
+                    })
+                    .then((updatedUser) => {
+                      chai
+                        .expect(user.password)
+                        .not.to.equal(updatedUser.password)
+                      done()
+                    })
+                    .catch((err) => {
+                      done(err)
+                    })
+                })
+            })
+            .catch((err) => {
+              done(err)
+            })
+        })
+    })
+
+    it('should return 404 if valid reset token and password provided but user not found', (done) => {
+      const userID = new mongoose.Types.ObjectId()
+      passwordResetTokenModel
+        .create({
+          user_id: userID
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .post(`/auth/password-reset?token=${token.token}`)
+            .send({ password: `New${validRegistrationPayload.password}` })
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(404)
+              res.body.should.have.property(
+                'passwordResetError',
+                'User not found'
+              )
+              done()
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 400 if non-existent reset token provided', (done) => {
+      const passwordResetTokenID = new mongoose.Types.ObjectId()
+      chai
+        .request(app)
+        .post(`/auth/password-reset?token=${passwordResetTokenID}`)
+        .send({ password: `New${validRegistrationPayload.password}` })
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'passwordResetError',
+            'Invalid password reset token'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if no password reset token provided', (done) => {
+      chai
+        .request(app)
+        .post('/auth/password-reset')
+        .send({ password: `New${validRegistrationPayload.password}` })
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'passwordResetError',
+            'Password reset token required'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if no new password provided', (done) => {
+      const passwordResetTokenID = new mongoose.Types.ObjectId()
+      chai
+        .request(app)
+        .post(`/auth/password-reset?token=${passwordResetTokenID}`)
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'passwordResetError',
+            'New password required'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if new password does not meet requirements', (done) => {
+      const passwordResetTokenID = new mongoose.Types.ObjectId()
+      chai
+        .request(app)
+        .post(`/auth/password-reset?token=${passwordResetTokenID}`)
+        .send({ password: `invalid` })
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'passwordResetError',
+            'New password does not meet requirements'
+          )
+          done()
         })
     })
   })

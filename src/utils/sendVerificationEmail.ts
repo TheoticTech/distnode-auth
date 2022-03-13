@@ -2,14 +2,14 @@
 import sgMail from '@sendgrid/mail'
 
 // Local
-import emailVerificationTemplate from '../templates/emailVerification'
+import callToActionEmail from '../templates/callToActionEmail'
 
 // Configurations
 import { FRONTEND_ORIGIN, SENDGRID_API_KEY } from '../config'
 
 const sendVerificationEmail = async (email, token): Promise<void> => {
   const link = `${FRONTEND_ORIGIN}/auth/verify-email?token=${token}`
-  const html = emailVerificationTemplate({
+  const html = callToActionEmail({
     callToActionlink: link,
     bannerImageURL:
       'https://distnode-static-prod.s3.amazonaws.com/distnode-twitter-header.jpg',
@@ -23,8 +23,8 @@ const sendVerificationEmail = async (email, token): Promise<void> => {
 
   const msg = {
     to: email,
-    from: 'registration@distnode.com',
-    subject: 'Distnode Email Verification',
+    from: 'accounts@distnode.com',
+    subject: 'DistNode Email Verification',
     text: `Please verify your email by visting the following link: ${link}`,
     html
   }
