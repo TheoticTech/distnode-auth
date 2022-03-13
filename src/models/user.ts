@@ -7,20 +7,20 @@ import mongoose from 'mongoose'
 import { ARGON_MEMORY_COST } from '../config'
 
 // Constants
-const argon2Options = {
+const ARGON_2_OPTIONS = {
   type: argon2.argon2id,
   memoryCost: ARGON_MEMORY_COST
 }
 
 const hashPassword = async (password: string): Promise<string> => {
-  return await argon2.hash(password, argon2Options)
+  return await argon2.hash(password, ARGON_2_OPTIONS)
 }
 
 const verifyPassword = async (
   hash: string,
   password: string
 ): Promise<boolean> => {
-  return await argon2.verify(hash, password, argon2Options)
+  return await argon2.verify(hash, password, ARGON_2_OPTIONS)
 }
 
 const userSchema = new mongoose.Schema({
@@ -38,6 +38,11 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
+    required: true
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false,
     required: true
   },
   password: {

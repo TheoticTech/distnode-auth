@@ -7,7 +7,9 @@ import mongoose from 'mongoose'
 import { csrfMiddleware } from '../middleware/csrf'
 import queryNeo4j from '../utils/queryNeo4j'
 import { refreshTokenModel } from '../models/refreshToken'
+import sendVerificationEmail from '../utils/sendVerificationEmail'
 import { userModel } from '../models/user'
+import { verificationTokenModel } from '../models/verificationToken'
 
 // Configurations
 import {
@@ -137,6 +139,12 @@ authRoutes.post(
         expiresIn: CSRF_TOKEN_TTL
       })
 
+      const verificationToken = await verificationTokenModel.create({
+        user_id: user._id
+      })
+
+      sendVerificationEmail(user.email, verificationToken.token)
+
       await refreshTokenModel.create({
         user_id: user._id,
         token: refreshToken
@@ -153,6 +161,115 @@ authRoutes.post(
       console.error(err)
       return res.status(500).json({
         registrationError: 'An unknown error occurred, please try again later'
+      })
+    }
+  }
+)
+
+// Used to get new verification email
+authRoutes.get(
+  '/verify-email',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const refreshToken = req.cookies?.refreshToken
+
+      if (refreshToken) {
+        const refreshTokenExists = await refreshTokenModel.findOne({
+          token: refreshToken
+        })
+
+        if (refreshTokenExists) {
+          const user = await userModel.findById(refreshTokenExists.user_id)
+
+          if (user) {
+            if (user.emailVerified) {
+              return res.status(400).json({
+                verifyEmailError: 'Email is already verified'
+              })
+            } else {
+              const verificationToken = await verificationTokenModel.create({
+                user_id: user._id
+              })
+
+              sendVerificationEmail(user.email, verificationToken.token)
+
+              return res.status(200).json({
+                verifyEmailSuccess: 'New verification email sent successfully'
+              })
+            }
+          } else {
+            return res.status(404).json({ verifyEmailError: 'User not found' })
+          }
+        } else {
+          return res
+            .status(404)
+            .json({ verifyEmailError: 'Refresh token not found' })
+        }
+      } else {
+        return res.status(401).json({
+          verifyEmailError: 'Refresh token cookie required'
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({
+        verifyEmailError: 'An unknown error occurred, please try again later'
+      })
+    }
+  }
+)
+
+// Verify email if provided a valid token
+authRoutes.post(
+  '/verify-email',
+  async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<express.Response> => {
+    try {
+      const { token } = req.query
+
+      if (!token) {
+        return res
+          .status(400)
+          .json({ verifyEmailError: 'Verification token required' })
+      } else {
+        const verificationToken = await verificationTokenModel.findOne({
+          token
+        })
+
+        if (!verificationToken) {
+          return res
+            .status(400)
+            .json({ verifyEmailError: 'Invalid verification token' })
+        } else {
+          const user = await userModel.findById(verificationToken.user_id)
+
+          if (user) {
+            if (user.emailVerified) {
+              return res.status(400).json({
+                verifyEmailError: 'Email is already verified'
+              })
+            } else {
+              user.emailVerified = true
+              await user.save()
+
+              return res
+                .status(200)
+                .json({ verifyEmailSuccess: 'Email verified successfully' })
+            }
+          } else {
+            return res.status(404).json({ verifyEmailError: 'User not found' })
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      return res.status(500).json({
+        verifyEmailError: 'An unknown error occurred, please try again later'
       })
     }
   }

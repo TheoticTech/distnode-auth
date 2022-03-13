@@ -10,6 +10,14 @@ content-type: application/json
     "password": "P@ssw0rd"
 }
 
+### Verification - get new verification email
+GET http://localhost:3000/auth/verify-email
+content-type: application/json
+
+### Verification - verify email
+POST http://localhost:3000/auth/verify-email?token=<>
+content-type: application/json
+
 ### Login - get tokens and set in cookie
 POST http://localhost:3000/auth/login
 content-type: application/json
@@ -18,12 +26,6 @@ content-type: application/json
     "email": "jd@distnode.com",
     "password": "P@ssw0rd"
 }
-
-### Logout - delete refresh token found in cookie
-POST http://localhost:3000/auth/logout
-content-type: application/json
-
-{}
 
 ### Refresh - update CSRF & access tokens using refresh token
 GET http://localhost:3000/auth/refreshed-tokens

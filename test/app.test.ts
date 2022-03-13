@@ -3,15 +3,19 @@ import chai from 'chai'
 import chaiHttp from 'chai-http'
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
+import sgMail from '@sendgrid/mail'
+import sinon from 'sinon'
 
 // Local
 import { app } from '../src/app'
 import { userModel } from '../src/models/user'
 import { refreshTokenModel } from '../src/models/refreshToken'
+import { verificationTokenModel } from '../src/models/verificationToken'
 
 // Configurations
 import { CSRF_TOKEN_SECRET } from '../src/config'
 
+// Setup Chai
 chai.use(chaiHttp)
 chai.should()
 
@@ -31,14 +35,22 @@ describe('Authentication routes', function () {
   })
 
   describe('POST /auth/register', function () {
+    let sendStub: sinon.SinonStub
+
+    beforeEach(() => {
+      sendStub = sinon.stub(sgMail, 'send')
+    })
+
     afterEach(async function () {
       await userModel.deleteMany()
+      await verificationTokenModel.deleteMany()
+      sendStub.restore()
     })
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...missingPasswordPayload } = validRegistrationPayload
 
-    it('should return 201 and set token cookies when supplied proper input', (done) => {
+    it('should return 201 set cookies, and send email when supplied proper input', (done) => {
       chai
         .request(app)
         .post('/auth/register')
@@ -55,6 +67,10 @@ describe('Authentication routes', function () {
             'registrationSuccess',
             'User created successfully'
           )
+          sinon.assert.calledWithMatch(sendStub, {
+            to: validRegistrationPayload.email,
+            from: 'registration@distnode.com'
+          })
           done()
         })
     })
@@ -295,6 +311,358 @@ describe('Authentication routes', function () {
             done()
           })
       })
+    })
+  })
+
+  describe('GET /auth/verify-email', () => {
+    let sendStub: sinon.SinonStub
+
+    beforeEach(() => {
+      sendStub = sinon.stub(sgMail, 'send')
+    })
+
+    afterEach(async function () {
+      await userModel.deleteMany()
+      await refreshTokenModel.deleteMany()
+      await verificationTokenModel.deleteMany()
+      sendStub.restore()
+    })
+
+    it('should return 200 if valid refresh token provided and email sent', (done) => {
+      userModel.create(validRegistrationPayload).then((user) => {
+        refreshTokenModel
+          .create({
+            token: 'token1',
+            user_id: user._id
+          })
+          .then((token) => {
+            chai.expect(token).not.to.be.null
+            chai
+              .request(app)
+              .get('/auth/verify-email')
+              .set('Cookie', `refreshToken=${token.token}`)
+              .end((err, res) => {
+                if (err) {
+                  done(err)
+                }
+                res.should.have.status(200)
+                res.body.should.have.property(
+                  'verifyEmailSuccess',
+                  'New verification email sent successfully'
+                )
+
+                sinon.assert.calledWithMatch(sendStub, {
+                  to: validRegistrationPayload.email,
+                  from: 'registration@distnode.com'
+                })
+
+                verificationTokenModel
+                  .exists({
+                    user_id: token.user_id
+                  })
+                  .then((exists) => {
+                    chai.expect(exists).not.to.be.null
+                    done()
+                  })
+                  .catch((err) => {
+                    done(err)
+                  })
+              })
+          })
+          .catch((err) => {
+            done(err)
+          })
+      })
+    })
+
+    it('should return 400 if email has already been verified', (done) => {
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then((user) => {
+          refreshTokenModel
+            .create({
+              token: 'token1',
+              user_id: user._id
+            })
+            .then((token) => {
+              chai.expect(token).not.to.be.null
+              chai
+                .request(app)
+                .get('/auth/verify-email')
+                .set('Cookie', `refreshToken=${token.token}`)
+                .end((err, res) => {
+                  if (err) {
+                    done(err)
+                  }
+                  res.should.have.status(400)
+                  res.body.should.have.property(
+                    'verifyEmailError',
+                    'Email is already verified'
+                  )
+
+                  sinon.assert.notCalled(sendStub)
+
+                  verificationTokenModel
+                    .exists({
+                      user_id: token.user_id
+                    })
+                    .then((exists) => {
+                      chai.expect(exists).to.be.null
+                      done()
+                    })
+                    .catch((err) => {
+                      done(err)
+                    })
+                })
+            })
+            .catch((err) => {
+              done(err)
+            })
+        })
+    })
+
+    it('should return 404 if valid refresh token provided but user not found', (done) => {
+      const userID = new mongoose.Types.ObjectId()
+      refreshTokenModel
+        .create({
+          token: 'token1',
+          user_id: userID
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .get('/auth/verify-email')
+            .set('Cookie', `refreshToken=${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(404)
+              res.body.should.have.property(
+                'verifyEmailError',
+                'User not found'
+              )
+
+              sinon.assert.notCalled(sendStub)
+
+              verificationTokenModel
+                .exists({
+                  user_id: userID
+                })
+                .then((exists) => {
+                  chai.expect(exists).to.be.null
+                  done()
+                })
+                .catch((err) => {
+                  done(err)
+                })
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 404 if refresh token not found', (done) => {
+      chai
+        .request(app)
+        .get('/auth/verify-email')
+        .set('Cookie', 'refreshToken=non-existent-token')
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(404)
+          res.body.should.have.property(
+            'verifyEmailError',
+            'Refresh token not found'
+          )
+          done()
+        })
+    })
+
+    it('should return 401 if refresh token not provided', (done) => {
+      chai
+        .request(app)
+        .get('/auth/verify-email')
+        .send()
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(401)
+          res.body.should.have.property(
+            'verifyEmailError',
+            'Refresh token cookie required'
+          )
+          done()
+        })
+    })
+  })
+
+  describe('POST /auth/verify-email', () => {
+    afterEach(async function () {
+      await userModel.deleteMany()
+      await verificationTokenModel.deleteMany()
+    })
+
+    it('should return 200 if valid verification token provided and user updated', (done) => {
+      userModel.create(validRegistrationPayload).then((user) => {
+        verificationTokenModel
+          .create({
+            user_id: user._id
+          })
+          .then((token) => {
+            chai.expect(token).not.to.be.null
+            chai
+              .request(app)
+              .post(`/auth/verify-email?token=${token.token}`)
+              .end((err, res) => {
+                if (err) {
+                  done(err)
+                }
+                res.should.have.status(200)
+                res.body.should.have.property(
+                  'verifyEmailSuccess',
+                  'Email verified successfully'
+                )
+
+                userModel
+                  .findOne({
+                    user_id: token.user_id
+                  })
+                  .then((updatedUser) => {
+                    chai.expect(updatedUser.emailVerified).to.be.true
+                    done()
+                  })
+                  .catch((err) => {
+                    done(err)
+                  })
+              })
+          })
+          .catch((err) => {
+            done(err)
+          })
+      })
+    })
+
+    it('should return 404 if valid verification token provided but user not found', (done) => {
+      const userID = new mongoose.Types.ObjectId()
+      verificationTokenModel
+        .create({
+          user_id: userID
+        })
+        .then((token) => {
+          chai.expect(token).not.to.be.null
+          chai
+            .request(app)
+            .post(`/auth/verify-email?token=${token.token}`)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(404)
+              res.body.should.have.property(
+                'verifyEmailError',
+                'User not found'
+              )
+              done()
+            })
+        })
+        .catch((err) => {
+          done(err)
+        })
+    })
+
+    it('should return 400 if non-existent verification token provided', (done) => {
+      const verificationTokenID = new mongoose.Types.ObjectId()
+      chai
+        .request(app)
+        .post(`/auth/verify-email?token=${verificationTokenID}`)
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'verifyEmailError',
+            'Invalid verification token'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if malformed verification token provided', (done) => {
+      const verificationTokenID = new mongoose.Types.ObjectId()
+      chai
+        .request(app)
+        .post(`/auth/verify-email?token=${verificationTokenID}`)
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'verifyEmailError',
+            'Invalid verification token'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if no token provided', (done) => {
+      chai
+        .request(app)
+        .post('/auth/verify-email')
+        .end((err, res) => {
+          if (err) {
+            done(err)
+          }
+          res.should.have.status(400)
+          res.body.should.have.property(
+            'verifyEmailError',
+            'Verification token required'
+          )
+          done()
+        })
+    })
+
+    it('should return 400 if email has already been verified', (done) => {
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then((user) => {
+          verificationTokenModel
+            .create({
+              user_id: user._id
+            })
+            .then((token) => {
+              chai.expect(token).not.to.be.null
+              chai
+                .request(app)
+                .post(`/auth/verify-email?token=${token.token}`)
+                .end((err, res) => {
+                  if (err) {
+                    done(err)
+                  }
+                  res.should.have.status(400)
+                  res.body.should.have.property(
+                    'verifyEmailError',
+                    'Email is already verified'
+                  )
+                  done()
+                })
+            })
+            .catch((err) => {
+              done(err)
+            })
+        })
     })
   })
 
