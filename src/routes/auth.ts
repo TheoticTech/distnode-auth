@@ -288,10 +288,12 @@ authRoutes.get(
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      const { email } = req.body
+      const { email } = req.query
 
       if (email) {
-        const user = await userModel.findOne({ email: email.toLowerCase() })
+        const user = await userModel.findOne({
+          email: email.toString().toLowerCase()
+        })
 
         if (user) {
           if (!user.emailVerified) {
@@ -371,7 +373,13 @@ authRoutes.post(
             user.password = password
             await user.save()
 
+            // Delete reset token as password has now been updated
             await passwordResetTokenModel.deleteMany({
+              user_id: user._id
+            })
+
+            // Delete any existing refresh tokens for user
+            await refreshTokenModel.deleteMany({
               user_id: user._id
             })
 

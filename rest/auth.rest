@@ -19,12 +19,8 @@ POST http://localhost:3000/auth/verify-email?token=<>
 content-type: application/json
 
 ### Password reset - get new reset email
-GET http://localhost:3000/auth/password-reset
+GET http://localhost:3000/auth/password-reset?email=<>
 content-type: application/json
-
-{
-    "email": "jd@distnode.com"
-}
 
 ### Password reset - apply password reset email
 POST http://localhost:3000/auth/password-reset?token=<>
@@ -56,13 +52,9 @@ content-type: application/json
 GET http://localhost:3000/auth/refresh-token/current
 Content-Type: application/json
 
-{}
-
 ### Get all refresh token IDs for current user
 GET http://localhost:3000/auth/refresh-token/all
 Content-Type: application/json
-
-{}
 
 ### Delete refresh token - overwrite cookies and delete refresh token
 DELETE http://localhost:3000/auth/refresh-token/current

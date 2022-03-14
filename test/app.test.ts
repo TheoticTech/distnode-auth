@@ -735,8 +735,7 @@ describe('Authentication routes', function () {
           chai.expect(user).not.to.be.null
           chai
             .request(app)
-            .get('/auth/password-reset')
-            .send({ email: user.email })
+            .get(`/auth/password-reset?email=${user.email}`)
             .end((err, res) => {
               if (err) {
                 done(err)
@@ -777,8 +776,7 @@ describe('Authentication routes', function () {
           chai.expect(user).not.to.be.null
           chai
             .request(app)
-            .get('/auth/password-reset')
-            .send({ email: user.email })
+            .get(`/auth/password-reset?email=${user.email}`)
             .end((err, res) => {
               if (err) {
                 done(err)
@@ -812,8 +810,7 @@ describe('Authentication routes', function () {
     it('should return 404 if user with provided email not found', (done) => {
       chai
         .request(app)
-        .get('/auth/password-reset')
-        .send({ email: 'non-existent-email@distnode.com' })
+        .get('/auth/password-reset?email=non-existent-email@distnode.com')
         .end((err, res) => {
           if (err) {
             done(err)
@@ -862,16 +859,14 @@ describe('Authentication routes', function () {
           chai.expect(user).not.to.be.null
           chai
             .request(app)
-            .get('/auth/password-reset')
-            .send({ email: user.email })
+            .get(`/auth/password-reset?email=${user.email}`)
             .end((err, res1) => {
               if (err) {
                 done(err)
               }
               chai
                 .request(app)
-                .get('/auth/password-reset')
-                .send({ email: user.email })
+                .get(`/auth/password-reset?email=${user.email}`)
                 .end((err, res2) => {
                   if (err) {
                     done(err)
@@ -918,9 +913,10 @@ describe('Authentication routes', function () {
     afterEach(async function () {
       await userModel.deleteMany()
       await passwordResetTokenModel.deleteMany()
+      await refreshTokenModel.deleteMany()
     })
 
-    it('should return 200 if valid reset token and new password provided, and user updated', (done) => {
+    it('should return 200, update user, and delete refresh tokens for user if valid input provided', (done) => {
       userModel
         .create({
           ...validRegistrationPayload,
@@ -955,7 +951,18 @@ describe('Authentication routes', function () {
                       chai
                         .expect(user.password)
                         .not.to.equal(updatedUser.password)
-                      done()
+
+                      refreshTokenModel
+                        .find({
+                          user_id: token.user_id
+                        })
+                        .then((refreshTokens) => {
+                          chai.expect(refreshTokens.length).to.equal(0)
+                          done()
+                        })
+                        .catch((err) => {
+                          done(err)
+                        })
                     })
                     .catch((err) => {
                       done(err)
