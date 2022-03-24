@@ -793,6 +793,8 @@ authRoutes.delete(
       if (user && (await user.validPassword(password))) {
         await userModel.deleteOne({ _id: user._id })
         await refreshTokenModel.deleteMany({ user_id: user._id })
+        await emailVerificationTokenModel.deleteMany({ user_id: user._id })
+        await passwordResetTokenModel.deleteMany({ user_id: user._id })
 
         await queryNeo4j(
           req.app.locals.driver,
