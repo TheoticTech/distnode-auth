@@ -115,43 +115,17 @@ authRoutes.post(
           'firstName: $firstName, ' +
           'lastName: $lastName, ' +
           'username: $username, ' +
-          'email: $email' +
+          'email: $email, ' +
+          'created_at: TIMESTAMP()' +
           '}) RETURN u',
         { userID: user._id.toString(), firstName, lastName, username, email }
       )
-
-      const accessToken = jwt.sign(
-        { user_id: user._id },
-        JWT_ACCESS_TOKEN_SECRET,
-        {
-          expiresIn: JWT_ACCESS_TOKEN_TTL
-        }
-      )
-      const refreshToken = jwt.sign(
-        { user_id: user._id },
-        JWT_REFRESH_TOKEN_SECRET,
-        {
-          expiresIn: JWT_REFRESH_TOKEN_TTL
-        }
-      )
-      const csrfToken = jwt.sign({ user_id: user._id }, CSRF_TOKEN_SECRET, {
-        expiresIn: CSRF_TOKEN_TTL
-      })
 
       const verificationToken = await emailVerificationTokenModel.create({
         user_id: user._id
       })
 
       sendVerificationEmail(user.email, verificationToken.token)
-
-      await refreshTokenModel.create({
-        user_id: user._id,
-        token: refreshToken
-      })
-
-      res.cookie('accessToken', accessToken, AUTH_COOKIE_OPTIONS)
-      res.cookie('refreshToken', refreshToken, AUTH_COOKIE_OPTIONS)
-      res.cookie('csrfToken', csrfToken, CSRF_COOKIE_OPTIONS)
 
       return res
         .status(201)
@@ -166,62 +140,56 @@ authRoutes.post(
 )
 
 // Used to get new verification email
-authRoutes.get(
-  '/verify-email',
+authRoutes.post(
+  '/resend-verification-email',
   async (
     req: express.Request,
     res: express.Response
   ): Promise<express.Response> => {
     try {
-      const refreshToken = req.cookies?.refreshToken
+      const { email } = req.body
 
-      if (refreshToken) {
-        const refreshTokenExists = await refreshTokenModel.findOne({
-          token: refreshToken
+      if (email) {
+        const user: any = await userModel.findOne({
+          email: email.toLowerCase()
         })
-
-        if (refreshTokenExists) {
-          const user = await userModel.findById(refreshTokenExists.user_id)
-
-          if (user) {
-            if (user.emailVerified) {
-              return res.status(400).json({
-                verifyEmailError: 'Email is already verified'
-              })
-            } else {
-              // Delete any existing verification tokens for user
-              await emailVerificationTokenModel.deleteMany({
-                user_id: user._id
-              })
-
-              const verificationToken =
-                await emailVerificationTokenModel.create({
-                  user_id: user._id
-                })
-
-              sendVerificationEmail(user.email, verificationToken.token)
-
-              return res.status(200).json({
-                verifyEmailSuccess: 'New verification email sent successfully'
-              })
-            }
+        if (user) {
+          if (user.emailVerified) {
+            return res.status(400).json({
+              resendVerificationError: 'Email is already verified'
+            })
           } else {
-            return res.status(404).json({ verifyEmailError: 'User not found' })
+            // Delete any existing verification tokens for user
+            await emailVerificationTokenModel.deleteMany({
+              user_id: user._id
+            })
+
+            const verificationToken = await emailVerificationTokenModel.create({
+              user_id: user._id
+            })
+
+            sendVerificationEmail(user.email, verificationToken.token)
+
+            return res.status(200).json({
+              resendVerificationSuccess:
+                'New verification email sent successfully'
+            })
           }
         } else {
           return res
             .status(404)
-            .json({ verifyEmailError: 'Refresh token not found' })
+            .json({ resendVerificationError: 'User not found' })
         }
       } else {
-        return res.status(401).json({
-          verifyEmailError: 'Refresh token cookie required'
-        })
+        return res
+          .status(400)
+          .json({ resendVerificationError: 'Email required' })
       }
     } catch (err) {
       console.error(err)
       return res.status(500).json({
-        verifyEmailError: 'An unknown error occurred, please try again later'
+        resendVerificationError:
+          'An unknown error occurred, please try again later'
       })
     }
   }
@@ -420,6 +388,12 @@ authRoutes.post(
       const user = await userModel.findOne({ email })
 
       if (user && (await user.validPassword(password))) {
+        if (!user.emailVerified) {
+          return res.status(401).json({
+            loginError: 'Email must be verified before logging in'
+          })
+        }
+
         const accessToken = jwt.sign(
           { user_id: user._id },
           JWT_ACCESS_TOKEN_SECRET,
@@ -452,6 +426,7 @@ authRoutes.post(
           .json({ loginSuccess: 'User logged in successfully' })
       }
 
+      // If we've reached this point, the email or password was incorrect
       return res.status(401).json({ loginError: 'Invalid credentials' })
     } catch (err) {
       console.error(err)

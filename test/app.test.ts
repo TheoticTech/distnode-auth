@@ -51,7 +51,7 @@ describe('Authentication routes', function () {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...missingPasswordPayload } = validRegistrationPayload
 
-    it('should return 201 set cookies, and send email when supplied proper input', (done) => {
+    it('should return 201 and send verification email when supplied proper input', (done) => {
       chai
         .request(app)
         .post('/auth/register')
@@ -61,9 +61,9 @@ describe('Authentication routes', function () {
             done(err)
           }
           res.should.have.status(201)
-          res.should.have.cookie('accessToken')
-          res.should.have.cookie('refreshToken')
-          res.should.have.cookie('csrfToken')
+          res.should.not.have.cookie('accessToken')
+          res.should.not.have.cookie('refreshToken')
+          res.should.not.have.cookie('csrfToken')
           res.body.should.have.property(
             'registrationSuccess',
             'User created successfully'
@@ -315,7 +315,7 @@ describe('Authentication routes', function () {
     })
   })
 
-  describe('GET /auth/verify-email', () => {
+  describe('POST /auth/resend-verification-email', () => {
     let sendStub: sinon.SinonStub
 
     beforeEach(() => {
@@ -331,47 +331,36 @@ describe('Authentication routes', function () {
 
     it('should return 200 if valid refresh token provided and email sent', (done) => {
       userModel.create(validRegistrationPayload).then((user) => {
-        refreshTokenModel
-          .create({
-            token: 'token1',
-            user_id: user._id
-          })
-          .then((token) => {
-            chai.expect(token).not.to.be.null
-            chai
-              .request(app)
-              .get('/auth/verify-email')
-              .set('Cookie', `refreshToken=${token.token}`)
-              .end((err, res) => {
-                if (err) {
-                  done(err)
-                }
-                res.should.have.status(200)
-                res.body.should.have.property(
-                  'verifyEmailSuccess',
-                  'New verification email sent successfully'
-                )
+        chai
+          .request(app)
+          .post('/auth/resend-verification-email')
+          .send({ email: user.email })
+          .end((err, res) => {
+            if (err) {
+              done(err)
+            }
+            res.should.have.status(200)
+            res.body.should.have.property(
+              'resendVerificationSuccess',
+              'New verification email sent successfully'
+            )
 
-                sinon.assert.calledWithMatch(sendStub, {
-                  to: validRegistrationPayload.email,
-                  from: 'accounts@distnode.com'
-                })
+            sinon.assert.calledWithMatch(sendStub, {
+              to: validRegistrationPayload.email,
+              from: 'accounts@distnode.com'
+            })
 
-                emailVerificationTokenModel
-                  .exists({
-                    user_id: token.user_id
-                  })
-                  .then((exists) => {
-                    chai.expect(exists).not.to.be.null
-                    done()
-                  })
-                  .catch((err) => {
-                    done(err)
-                  })
+            emailVerificationTokenModel
+              .exists({
+                user_id: user._id.toString()
               })
-          })
-          .catch((err) => {
-            done(err)
+              .then((exists) => {
+                chai.expect(exists).not.to.be.null
+                done()
+              })
+              .catch((err) => {
+                done(err)
+              })
           })
       })
     })
@@ -383,76 +372,25 @@ describe('Authentication routes', function () {
           emailVerified: true
         })
         .then((user) => {
-          refreshTokenModel
-            .create({
-              token: 'token1',
-              user_id: user._id
-            })
-            .then((token) => {
-              chai.expect(token).not.to.be.null
-              chai
-                .request(app)
-                .get('/auth/verify-email')
-                .set('Cookie', `refreshToken=${token.token}`)
-                .end((err, res) => {
-                  if (err) {
-                    done(err)
-                  }
-                  res.should.have.status(400)
-                  res.body.should.have.property(
-                    'verifyEmailError',
-                    'Email is already verified'
-                  )
-
-                  sinon.assert.notCalled(sendStub)
-
-                  emailVerificationTokenModel
-                    .exists({
-                      user_id: token.user_id
-                    })
-                    .then((exists) => {
-                      chai.expect(exists).to.be.null
-                      done()
-                    })
-                    .catch((err) => {
-                      done(err)
-                    })
-                })
-            })
-            .catch((err) => {
-              done(err)
-            })
-        })
-    })
-
-    it('should return 404 if valid refresh token provided but user not found', (done) => {
-      const userID = new mongoose.Types.ObjectId()
-      refreshTokenModel
-        .create({
-          token: 'token1',
-          user_id: userID
-        })
-        .then((token) => {
-          chai.expect(token).not.to.be.null
           chai
             .request(app)
-            .get('/auth/verify-email')
-            .set('Cookie', `refreshToken=${token.token}`)
+            .post('/auth/resend-verification-email')
+            .send({ email: user.email })
             .end((err, res) => {
               if (err) {
                 done(err)
               }
-              res.should.have.status(404)
+              res.should.have.status(400)
               res.body.should.have.property(
-                'verifyEmailError',
-                'User not found'
+                'resendVerificationError',
+                'Email is already verified'
               )
 
               sinon.assert.notCalled(sendStub)
 
               emailVerificationTokenModel
                 .exists({
-                  user_id: userID
+                  user_id: user._id.toString()
                 })
                 .then((exists) => {
                   chai.expect(exists).to.be.null
@@ -468,37 +406,51 @@ describe('Authentication routes', function () {
         })
     })
 
-    it('should return 404 if refresh token not found', (done) => {
+    it('should return 404 if email provided but user not found', (done) => {
+      const userID = new mongoose.Types.ObjectId()
       chai
         .request(app)
-        .get('/auth/verify-email')
-        .set('Cookie', 'refreshToken=non-existent-token')
+        .post('/auth/resend-verification-email')
+        .send({ email: validRegistrationPayload.email })
         .end((err, res) => {
           if (err) {
             done(err)
           }
           res.should.have.status(404)
           res.body.should.have.property(
-            'verifyEmailError',
-            'Refresh token not found'
+            'resendVerificationError',
+            'User not found'
           )
-          done()
+
+          sinon.assert.notCalled(sendStub)
+
+          emailVerificationTokenModel
+            .exists({
+              user_id: userID
+            })
+            .then((exists) => {
+              chai.expect(exists).to.be.null
+              done()
+            })
+            .catch((err) => {
+              done(err)
+            })
         })
     })
 
-    it('should return 401 if refresh token not provided', (done) => {
+    it('should return 400 if email not provided', (done) => {
       chai
         .request(app)
-        .get('/auth/verify-email')
+        .post('/auth/resend-verification-email')
         .send()
         .end((err, res) => {
           if (err) {
             done(err)
           }
-          res.should.have.status(401)
+          res.should.have.status(400)
           res.body.should.have.property(
-            'verifyEmailError',
-            'Refresh token cookie required'
+            'resendVerificationError',
+            'Email required'
           )
           done()
         })
@@ -506,63 +458,52 @@ describe('Authentication routes', function () {
 
     it('should delete previous verification token if multiple are requested', (done) => {
       userModel.create(validRegistrationPayload).then((user) => {
-        refreshTokenModel
-          .create({
-            token: 'token1',
-            user_id: user._id
-          })
-          .then((token) => {
-            chai.expect(token).not.to.be.null
+        chai
+          .request(app)
+          .post('/auth/resend-verification-email')
+          .send({ email: user.email })
+          .end((err, res1) => {
+            if (err) {
+              done(err)
+            }
             chai
               .request(app)
-              .get('/auth/verify-email')
-              .set('Cookie', `refreshToken=${token.token}`)
-              .end((err, res1) => {
+              .post('/auth/resend-verification-email')
+              .send({ email: user.email })
+              .end((err, res2) => {
                 if (err) {
                   done(err)
                 }
-                chai
-                  .request(app)
-                  .get('/auth/verify-email')
-                  .set('Cookie', `refreshToken=${token.token}`)
-                  .end((err, res2) => {
-                    if (err) {
-                      done(err)
-                    }
-                    res1.should.have.status(200)
-                    res2.should.have.status(200)
-                    res1.body.should.have.property(
-                      'verifyEmailSuccess',
-                      'New verification email sent successfully'
-                    )
-                    res2.body.should.have.property(
-                      'verifyEmailSuccess',
-                      'New verification email sent successfully'
-                    )
+                res1.should.have.status(200)
+                res2.should.have.status(200)
+                res1.body.should.have.property(
+                  'resendVerificationSuccess',
+                  'New verification email sent successfully'
+                )
+                res2.body.should.have.property(
+                  'resendVerificationSuccess',
+                  'New verification email sent successfully'
+                )
 
-                    sinon.assert.callCount(sendStub, 2)
+                sinon.assert.callCount(sendStub, 2)
 
-                    sinon.assert.calledWithMatch(sendStub, {
-                      to: validRegistrationPayload.email,
-                      from: 'accounts@distnode.com'
-                    })
+                sinon.assert.calledWithMatch(sendStub, {
+                  to: validRegistrationPayload.email,
+                  from: 'accounts@distnode.com'
+                })
 
-                    emailVerificationTokenModel
-                      .find({
-                        user_id: token.user_id
-                      })
-                      .then((exists) => {
-                        chai.expect(exists.length).to.equal(1)
-                        done()
-                      })
-                      .catch((err) => {
-                        done(err)
-                      })
+                emailVerificationTokenModel
+                  .find({
+                    user_id: user._id.toString()
+                  })
+                  .then((exists) => {
+                    chai.expect(exists.length).to.equal(1)
+                    done()
+                  })
+                  .catch((err) => {
+                    done(err)
                   })
               })
-          })
-          .catch((err) => {
-            done(err)
           })
       })
     })
@@ -1085,26 +1026,32 @@ describe('Authentication routes', function () {
     })
 
     it('should return 200 and set token cookies for valid login', (done) => {
-      userModel.create(validRegistrationPayload).then(() => {
-        chai
-          .request(app)
-          .post('/auth/login')
-          .send(validRegistrationPayload)
-          .end((err, res) => {
-            if (err) {
-              done(err)
-            }
-            res.should.have.status(200)
-            res.should.have.cookie('accessToken')
-            res.should.have.cookie('refreshToken')
-            res.should.have.cookie('csrfToken')
-            res.body.should.have.property(
-              'loginSuccess',
-              'User logged in successfully'
-            )
-            done()
-          })
-      })
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then(() => {
+          chai
+            .request(app)
+            .post('/auth/login')
+            .send(validRegistrationPayload)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              console.log('DEBUG:', res.body)
+              res.should.have.status(200)
+              res.should.have.cookie('accessToken')
+              res.should.have.cookie('refreshToken')
+              res.should.have.cookie('csrfToken')
+              res.body.should.have.property(
+                'loginSuccess',
+                'User logged in successfully'
+              )
+              done()
+            })
+        })
     })
 
     it('should return 401 for invalid login', (done) => {
@@ -1112,23 +1059,28 @@ describe('Authentication routes', function () {
         ...validRegistrationPayload,
         password: 'NotTheP@ssw0rd1'
       }
-      userModel.create(validRegistrationPayload).then(() => {
-        chai
-          .request(app)
-          .post('/auth/login')
-          .send(payload)
-          .end((err, res) => {
-            if (err) {
-              done(err)
-            }
-            res.should.have.status(401)
-            res.should.not.have.cookie('accessToken')
-            res.should.not.have.cookie('refreshToken')
-            res.should.not.have.cookie('csrfToken')
-            res.body.should.have.property('loginError', 'Invalid credentials')
-            done()
-          })
-      })
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then(() => {
+          chai
+            .request(app)
+            .post('/auth/login')
+            .send(payload)
+            .end((err, res) => {
+              if (err) {
+                done(err)
+              }
+              res.should.have.status(401)
+              res.should.not.have.cookie('accessToken')
+              res.should.not.have.cookie('refreshToken')
+              res.should.not.have.cookie('csrfToken')
+              res.body.should.have.property('loginError', 'Invalid credentials')
+              done()
+            })
+        })
     })
 
     it('should return 400 for missing password', (done) => {
@@ -1210,35 +1162,40 @@ describe('Authentication routes', function () {
     })
 
     it('should return 200 and set token cookies for valid refresh', (done) => {
-      userModel.create(validRegistrationPayload).then(() => {
-        const agent = chai.request.agent(app)
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then(() => {
+          const agent = chai.request.agent(app)
 
-        agent
-          .post('/auth/login')
-          .send(validRegistrationPayload)
-          .then((loginRes) => {
-            loginRes.should.have.cookie('accessToken')
-            loginRes.should.have.cookie('refreshToken')
-            loginRes.should.have.cookie('csrfToken')
+          agent
+            .post('/auth/login')
+            .send(validRegistrationPayload)
+            .then((loginRes) => {
+              loginRes.should.have.cookie('accessToken')
+              loginRes.should.have.cookie('refreshToken')
+              loginRes.should.have.cookie('csrfToken')
 
-            return agent.get('/auth/refreshed-tokens').then((refreshRes) => {
-              refreshRes.should.have.status(200)
-              refreshRes.should.have.cookie('accessToken')
-              refreshRes.should.have.cookie('csrfToken')
-              refreshRes.body.should.have.property(
-                'refreshSuccess',
-                'Tokens refreshed successfully'
-              )
-              done()
+              return agent.get('/auth/refreshed-tokens').then((refreshRes) => {
+                refreshRes.should.have.status(200)
+                refreshRes.should.have.cookie('accessToken')
+                refreshRes.should.have.cookie('csrfToken')
+                refreshRes.body.should.have.property(
+                  'refreshSuccess',
+                  'Tokens refreshed successfully'
+                )
+                done()
+              })
             })
-          })
-          .catch((err) => {
-            done(err)
-          })
-          .finally(() => {
-            agent.close()
-          })
-      })
+            .catch((err) => {
+              done(err)
+            })
+            .finally(() => {
+              agent.close()
+            })
+        })
     })
 
     it('should return 401 if no refresh token provided', (done) => {
@@ -1265,30 +1222,35 @@ describe('Authentication routes', function () {
     })
 
     it('should return 401 if invalid refresh token provided', (done) => {
-      userModel.create(validRegistrationPayload).then(() => {
-        const agent = chai.request.agent(app)
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then(() => {
+          const agent = chai.request.agent(app)
 
-        agent
-          .get('/auth/refreshed-tokens')
-          .set('Cookie', 'refreshToken=invalid-token')
-          .then((refreshRes) => {
-            refreshRes.should.have.status(401)
-            refreshRes.should.not.have.cookie('accessToken')
-            refreshRes.should.not.have.cookie('refreshToken')
-            refreshRes.should.not.have.cookie('csrfToken')
-            refreshRes.body.should.have.property(
-              'refreshError',
-              'Invalid refresh token'
-            )
-            done()
-          })
-          .catch((err) => {
-            done(err)
-          })
-          .finally(() => {
-            agent.close()
-          })
-      })
+          agent
+            .get('/auth/refreshed-tokens')
+            .set('Cookie', 'refreshToken=invalid-token')
+            .then((refreshRes) => {
+              refreshRes.should.have.status(401)
+              refreshRes.should.not.have.cookie('accessToken')
+              refreshRes.should.not.have.cookie('refreshToken')
+              refreshRes.should.not.have.cookie('csrfToken')
+              refreshRes.body.should.have.property(
+                'refreshError',
+                'Invalid refresh token'
+              )
+              done()
+            })
+            .catch((err) => {
+              done(err)
+            })
+            .finally(() => {
+              agent.close()
+            })
+        })
     })
   })
 
@@ -1940,65 +1902,70 @@ describe('Authentication routes', function () {
     })
 
     it('should return 200 and delete user and refresh tokens if they exist', (done) => {
-      userModel.create(validRegistrationPayload).then((user) => {
-        const agent = chai.request.agent(app)
+      userModel
+        .create({
+          ...validRegistrationPayload,
+          emailVerified: true
+        })
+        .then((user) => {
+          const agent = chai.request.agent(app)
 
-        agent
-          .post('/auth/login')
-          .send(validRegistrationPayload)
-          .then((loginRes) => {
-            loginRes.should.have.cookie('accessToken')
-            loginRes.should.have.cookie('refreshToken')
-            loginRes.should.have.cookie('csrfToken')
-            const csrfToken = loginRes['headers']['set-cookie']
-              .filter((cookie) => cookie.includes('csrfToken'))[0]
-              .split(';')[0]
-              .split('=')[1]
+          agent
+            .post('/auth/login')
+            .send(validRegistrationPayload)
+            .then((loginRes) => {
+              loginRes.should.have.cookie('accessToken')
+              loginRes.should.have.cookie('refreshToken')
+              loginRes.should.have.cookie('csrfToken')
+              const csrfToken = loginRes['headers']['set-cookie']
+                .filter((cookie) => cookie.includes('csrfToken'))[0]
+                .split(';')[0]
+                .split('=')[1]
 
-            return agent
-              .delete('/auth/user')
-              .send({ ...validRegistrationPayload, csrfToken })
-              .then((deleteRes) => {
-                deleteRes.should.have.status(200)
-                deleteRes.should.not.have.cookie('accessToken')
-                deleteRes.should.not.have.cookie('refreshToken')
-                deleteRes.should.not.have.cookie('csrfToken')
-                deleteRes.body.should.have.property(
-                  'deleteUserSuccess',
-                  'User deleted successfully'
-                )
+              return agent
+                .delete('/auth/user')
+                .send({ ...validRegistrationPayload, csrfToken })
+                .then((deleteRes) => {
+                  deleteRes.should.have.status(200)
+                  deleteRes.should.not.have.cookie('accessToken')
+                  deleteRes.should.not.have.cookie('refreshToken')
+                  deleteRes.should.not.have.cookie('csrfToken')
+                  deleteRes.body.should.have.property(
+                    'deleteUserSuccess',
+                    'User deleted successfully'
+                  )
 
-                userModel
-                  .exists({
-                    user_id: user._id
-                  })
-                  .then((userExists) => {
-                    chai.expect(userExists).to.be.null
+                  userModel
+                    .exists({
+                      user_id: user._id
+                    })
+                    .then((userExists) => {
+                      chai.expect(userExists).to.be.null
 
-                    refreshTokenModel
-                      .exists({
-                        user_id: user._id
-                      })
-                      .then((refreshTokenExists) => {
-                        chai.expect(refreshTokenExists).to.be.null
-                        done()
-                      })
-                      .catch((err) => {
-                        done(err)
-                      })
-                  })
-                  .catch((err) => {
-                    done(err)
-                  })
-              })
-          })
-          .catch((err) => {
-            done(err)
-          })
-          .finally(() => {
-            agent.close()
-          })
-      })
+                      refreshTokenModel
+                        .exists({
+                          user_id: user._id
+                        })
+                        .then((refreshTokenExists) => {
+                          chai.expect(refreshTokenExists).to.be.null
+                          done()
+                        })
+                        .catch((err) => {
+                          done(err)
+                        })
+                    })
+                    .catch((err) => {
+                      done(err)
+                    })
+                })
+            })
+            .catch((err) => {
+              done(err)
+            })
+            .finally(() => {
+              agent.close()
+            })
+        })
     })
 
     it('should return 401 if CSRF token missing from cookies', (done) => {
