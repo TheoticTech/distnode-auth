@@ -423,7 +423,10 @@ authRoutes.post(
 
         return res
           .status(200)
-          .json({ loginSuccess: 'User logged in successfully' })
+          .json({
+            loginSuccess: 'User logged in successfully',
+            userID: user._id.toString()
+          })
       }
 
       // If we've reached this point, the email or password was incorrect
