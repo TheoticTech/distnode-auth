@@ -8,7 +8,7 @@ import callToActionEmail from '../templates/callToActionEmail'
 import { FRONTEND_ORIGIN, SENDGRID_API_KEY } from '../config'
 
 const sendVerificationEmail = async (email, token): Promise<void> => {
-  const link = `${FRONTEND_ORIGIN}/auth/verify-email?token=${token}`
+  const link = `${FRONTEND_ORIGIN}/auth/email/verification?token=${token}`
   const html = callToActionEmail({
     callToActionlink: link,
     bannerImageURL:

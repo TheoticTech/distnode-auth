@@ -8,7 +8,7 @@ import callToActionEmail from '../templates/callToActionEmail'
 import { FRONTEND_ORIGIN, SENDGRID_API_KEY } from '../config'
 
 const sendPasswordResetEmail = async (email, token): Promise<void> => {
-  const link = `${FRONTEND_ORIGIN}/auth/password-reset?token=${token}`
+  const link = `${FRONTEND_ORIGIN}/auth/password/reset?token=${token}`
   const html = callToActionEmail({
     callToActionlink: link,
     bannerImageURL:
