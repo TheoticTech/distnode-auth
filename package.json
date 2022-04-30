@@ -34,7 +34,7 @@
   "dependencies": {
     "@godaddy/terminus": "^4.10.2",
     "@sendgrid/mail": "^7.6.2",
-    "argon2": "^0.28.4",
+    "argon2": "^0.28.5",
     "cookie-parser": "^1.4.6",
     "express": "^4.17.2",
     "handlebars": "^4.7.7",
